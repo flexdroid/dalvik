@@ -102,6 +102,23 @@ static void
 }
 
 /*
+ * public static StackTraceElement[] getStackTraceBySysTid(int sysTid)
+ *
+ * Get a stack trace as an array of StackTraceElement objects.  Returns
+ * NULL on failure, e.g. if the sysTid couldn't be found.
+ */
+static void
+    Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceBySysTid(
+    const u4* args, JValue* pResult)
+{
+    u4 sysTid = args[0];
+    ArrayObject* trace;
+
+    trace = dvmDdmGetStackTraceBySysTid(sysTid);
+    RETURN_PTR(trace);
+}
+
+/*
  * public static void enableRecentAllocations(boolean enable)
  *
  * Enable or disable recent allocation tracking.
@@ -159,6 +176,8 @@ const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmVmInternal[] = {
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_heapSegmentNotify },
     { "getStackTraceById",  "(I)[Ljava/lang/StackTraceElement;",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceById },
+    { "getStackTraceBySysTid",  "(I)[Ljava/lang/StackTraceElement;",
+      Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceBySysTid },
     { "enableRecentAllocations", "(Z)V",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_enableRecentAllocations },
     { "getRecentAllocationStatus", "()Z",

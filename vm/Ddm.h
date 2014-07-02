@@ -76,6 +76,7 @@ bool dvmDdmHandleHpsgNhsgChunk(int when, int what, bool native);
  * Get an array of StackTraceElement objects for the specified thread.
  */
 ArrayObject* dvmDdmGetStackTraceById(u4 threadId);
+ArrayObject* dvmDdmGetStackTraceBySysTid(u4 sysTid);
 
 /*
  * Gather up recent allocation data and return it in a byte[].

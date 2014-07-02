@@ -423,6 +423,49 @@ ArrayObject* dvmDdmGenerateThreadStats()
  * Find the specified thread and return its stack trace as an array of
  * StackTraceElement objects.
  */
+ArrayObject* dvmDdmGetStackTraceBySysTid(u4 sysTid)
+{
+    Thread* self = dvmThreadSelf();
+    Thread* thread;
+    int* traceBuf;
+
+    dvmLockThreadList(self);
+
+    for (thread = gDvm.threadList; thread != NULL; thread = thread->next) {
+        if (thread->systemTid == (pid_t)sysTid)
+            break;
+    }
+    if (thread == NULL) {
+        ALOGI("dvmDdmGetStackTraceById: sysTid=%d not found", sysTid);
+        dvmUnlockThreadList();
+        return NULL;
+    }
+
+    /*
+     * Suspend the thread, pull out the stack trace, then resume the thread
+     * and release the thread list lock.  If we're being asked to examine
+     * our own stack trace, skip the suspend/resume.
+     */
+    size_t stackDepth;
+    if (thread != self)
+        dvmSuspendThread(thread);
+    traceBuf = dvmFillInStackTraceRaw(thread, &stackDepth);
+    if (thread != self)
+        dvmResumeThread(thread);
+    dvmUnlockThreadList();
+
+    /*
+     * Convert the raw buffer into an array of StackTraceElement.
+     */
+    ArrayObject* trace = dvmGetStackTraceRaw(traceBuf, stackDepth);
+    free(traceBuf);
+    return trace;
+}
+
+/*
+ * Find the specified thread and return its stack trace as an array of
+ * StackTraceElement objects.
+ */
 ArrayObject* dvmDdmGetStackTraceById(u4 threadId)
 {
     Thread* self = dvmThreadSelf();
