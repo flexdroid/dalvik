@@ -19,6 +19,7 @@
  */
 #include "Dalvik.h"
 #include "native/InternalNativePriv.h"
+#include "remote_stack_inspector/main.h"
 
 
 /*
@@ -102,20 +103,31 @@ static void
 }
 
 /*
- * public static StackTraceElement[] getStackTraceBySysTid(int sysTid)
+ * public static String getStackTraceBySysTid(int pid, int tid)
  *
- * Get a stack trace as an array of StackTraceElement objects.  Returns
- * NULL on failure, e.g. if the sysTid couldn't be found.
+ * Get a stack trace as a String.  Returns
+ * NULL on failure, e.g. if the (pid, tid) couldn't be found.
  */
 static void
     Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceBySysTid(
     const u4* args, JValue* pResult)
 {
-    u4 sysTid = args[0];
-    ArrayObject* trace;
+    pid_t pid = (pid_t)args[0];
+    pid_t tid = (pid_t)args[1];
+    StringObject* trace;
 
-    trace = dvmDdmGetStackTraceBySysTid(sysTid);
+    trace = dvmCreateStringFromCstr(request_stack_inspection(pid, tid));
+    dvmReleaseTrackedAlloc((Object*) trace, NULL);
     RETURN_PTR(trace);
+}
+
+static void
+    Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_registerPM(
+    const u4* args, JValue* pResult)
+{
+    UNUSED_PARAMETER(args);
+    register_pm();
+    RETURN_VOID();
 }
 
 /*
@@ -176,8 +188,10 @@ const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmVmInternal[] = {
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_heapSegmentNotify },
     { "getStackTraceById",  "(I)[Ljava/lang/StackTraceElement;",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceById },
-    { "getStackTraceBySysTid",  "(I)[Ljava/lang/StackTraceElement;",
+    { "getStackTraceBySysTid",  "(II)Ljava/lang/String;",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceBySysTid },
+    { "registerPM",  "()V",
+      Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_registerPM },
     { "enableRecentAllocations", "(Z)V",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_enableRecentAllocations },
     { "getRecentAllocationStatus", "()Z",

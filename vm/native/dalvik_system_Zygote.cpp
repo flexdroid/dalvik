@@ -19,6 +19,7 @@
  */
 #include "Dalvik.h"
 #include "native/InternalNativePriv.h"
+#include "remote_stack_inspector/main.h"
 
 #include <selinux/android.h>
 
@@ -669,6 +670,14 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
         if (!dvmInitAfterZygote()) {
             ALOGE("error in post-zygote initialization");
             dvmAbort();
+        }
+
+        // jaebaek: stack inspection thread
+        pthread_t thread_t;
+        if (pthread_create(&thread_t, NULL, do_stack_inspection, NULL) < 0)
+        {
+            ALOGE("error in stack inspector creation");
+            exit(0);
         }
     } else if (pid > 0) {
         /* the parent process */

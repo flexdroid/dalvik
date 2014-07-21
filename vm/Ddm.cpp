@@ -420,25 +420,26 @@ ArrayObject* dvmDdmGenerateThreadStats()
 
 
 /*
- * Find the specified thread and return its stack trace as an array of
- * StackTraceElement objects.
+ * jaebaek: get stack trace as an array of strings.
  */
-ArrayObject* dvmDdmGetStackTraceBySysTid(u4 sysTid)
+void dvmDdmGetStackTrace(pid_t sysTid, std::vector<std::string>& trace)
 {
     Thread* self = dvmThreadSelf();
     Thread* thread;
     int* traceBuf;
+    size_t i;
 
     dvmLockThreadList(self);
 
     for (thread = gDvm.threadList; thread != NULL; thread = thread->next) {
-        if (thread->systemTid == (pid_t)sysTid)
+        ALOGI("dvmDdmGetStackTrace: thread->systemTid=%d in loop", thread->systemTid);
+        if (thread->systemTid == sysTid)
             break;
     }
     if (thread == NULL) {
-        ALOGI("dvmDdmGetStackTraceById: sysTid=%d not found", sysTid);
+        ALOGI("dvmDdmGetStackTrace: sysTid=%d not found", sysTid);
         dvmUnlockThreadList();
-        return NULL;
+        return;
     }
 
     /*
@@ -455,11 +456,17 @@ ArrayObject* dvmDdmGetStackTraceBySysTid(u4 sysTid)
     dvmUnlockThreadList();
 
     /*
-     * Convert the raw buffer into an array of StackTraceElement.
+     * jaebaek: get class and method name as string
      */
-    ArrayObject* trace = dvmGetStackTraceRaw(traceBuf, stackDepth);
+    for (i = 0; i < stackDepth; i++) {
+        Method* meth = (Method*) *traceBuf++;
+        std::string methName(meth->name);
+        methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
+            + "." + methName;
+        trace.push_back(methName);
+        traceBuf++;
+    }
     free(traceBuf);
-    return trace;
 }
 
 /*
