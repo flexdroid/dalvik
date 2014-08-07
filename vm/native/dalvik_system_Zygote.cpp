@@ -649,6 +649,12 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
             ALOGE("cannot set SELinux context: %s\n", strerror(errno));
             dvmAbort();
         }
+
+        // backup app name
+        char app_name[64] = {0};
+        if (niceName != NULL)
+            strlcpy(app_name, niceName, strlen(niceName));
+
         // These free(3) calls are safe because we know we're only ever forking
         // a single-threaded process, so we know no other thread held the heap
         // lock when we forked.
@@ -670,6 +676,17 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
             ALOGE("error in post-zygote initialization");
             dvmAbort();
         }
+
+        // time stamp
+        timeval now;
+        gettimeofday(&now, NULL);
+        long long when = now.tv_sec * 1000LL + now.tv_usec / 1000;
+        char log[128];
+        sprintf(log, "jaebaek %s: %d fork in dalvik at %lld",
+                //dvmGetThreadName(thread).c_str(),
+                app_name,
+                thread->systemTid, when);
+        ALOGI("%s", log);
     } else if (pid > 0) {
         /* the parent process */
         free(seInfo);
