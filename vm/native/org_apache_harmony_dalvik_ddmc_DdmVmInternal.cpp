@@ -115,8 +115,10 @@ static void
     pid_t pid = (pid_t)args[0];
     pid_t tid = (pid_t)args[1];
     StringObject* trace;
+    std::string raw_trace;
 
-    trace = dvmCreateStringFromCstr(request_stack_inspection(pid, tid));
+    request_stack_inspection(pid, tid, raw_trace);
+    trace = dvmCreateStringFromCstr(raw_trace.c_str());
     dvmReleaseTrackedAlloc((Object*) trace, NULL);
     RETURN_PTR(trace);
 }

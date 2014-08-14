@@ -35,10 +35,9 @@ void *do_stack_inspection(void *arg)
         while(1)
         {
             ret = read(fd, &target_tid, sizeof(pid_t));
-            ALOGI("do_stack_inspection: tid=%d", target_tid);
+            stack_info.clear();
             dvmDdmGetStackTrace(target_tid, stack_info);
             ret = copy_to_buf(buf, stack_info);
-            ALOGI("do_stack_inspection: buf=%s", buf);
             ret = write(fd, buf, ret);
         }
         close(fd);
@@ -46,26 +45,20 @@ void *do_stack_inspection(void *arg)
     return (void *)0;
 }
 
-std::string request_stack_inspection(const pid_t pid, const pid_t tid)
+void request_stack_inspection(const pid_t pid, const pid_t tid,
+        std::string& trace)
 {
     int target[2] = {pid, tid};
-    char buf[BUFF_SIZE] = {0};
+    char buf[BUFF_SIZE];
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
-    std::string trace;
-    size_t ret;
     if (fd > 0)
     {
-        ret = write(fd, target, 2*sizeof(int));
-        ALOGI("request_stack_inspection: pid=%d, tid=%d", pid, tid);
-        // assert(ret == sizeof(int));
-        ret = read(fd, buf, BUFF_SIZE);
-        ALOGI("request_stack_inspection: buf=%s", buf);
-        // assert(ret != -1);
+        write(fd, target, 2*sizeof(int));
+        read(fd, buf, BUFF_SIZE);
+        trace.clear();
         trace.append(buf);
-        ALOGI("request_stack_inspection: trace=%s", trace.c_str());
         close(fd);
     }
-    return trace;
 }
 
 void register_pm(void)
