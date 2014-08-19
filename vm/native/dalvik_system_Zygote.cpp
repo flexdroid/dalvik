@@ -673,11 +673,13 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
         }
 
         // jaebaek: stack inspection thread
-        pthread_t thread_t;
-        if (pthread_create(&thread_t, NULL, do_stack_inspection, NULL) < 0)
-        {
-            ALOGE("error in stack inspector creation");
-            exit(0);
+        if (!isSystemServer) {
+            pthread_t thread_t;
+            if (pthread_create(&thread_t, NULL, do_stack_inspection, NULL) < 0)
+            {
+                ALOGE("error in stack inspector creation");
+                exit(0);
+            }
         }
     } else if (pid > 0) {
         /* the parent process */
