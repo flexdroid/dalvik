@@ -114,11 +114,7 @@ static void
 {
     pid_t pid = (pid_t)args[0];
     pid_t tid = (pid_t)args[1];
-    ArrayObject* trace;
-    std::string raw_trace;
-
-    request_stack_inspection(pid, tid, raw_trace);
-    trace = NULL;
+    ArrayObject* trace = (ArrayObject*)request_stack_inspection(pid, tid);
     RETURN_PTR(trace);
 }
 

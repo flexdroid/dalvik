@@ -9,9 +9,12 @@
 #include <sys/types.h>
 #include <string>
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 // jaebaek: do stack inspection as a thread
 void *do_stack_inspection(void *);
-void request_stack_inspection(const pid_t, const pid_t, std::string&);
+void *request_stack_inspection(const pid_t, const pid_t);
 void register_pm(void);
 
 #endif

@@ -25,40 +25,43 @@ void *do_stack_inspection(void *arg)
 {
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     pid_t target_tid;
-    std::vector<std::string> stack_info;
-    char buf[BUFF_SIZE];
-    size_t ret;
+    int test = 0;
 
     if (fd > 0)
     {
         ioctl(fd, 1, 0);
         while(1)
         {
-            ret = read(fd, &target_tid, sizeof(pid_t));
-            stack_info.clear();
-            dvmDdmGetStackTrace(target_tid, stack_info);
-            ret = copy_to_buf(buf, stack_info);
-            ret = write(fd, buf, ret);
+            read(fd, &target_tid, sizeof(pid_t));
+            //dvmDdmGetStackTrace(target_tid, stack_info);
+            write(fd, &test, sizeof(int));
         }
         close(fd);
     }
     return (void *)0;
 }
 
-void request_stack_inspection(const pid_t pid, const pid_t tid,
-        std::string& trace)
+void *request_stack_inspection(const pid_t pid, const pid_t tid)
 {
+    ArrayObject* stackData = NULL;
     int target[2] = {pid, tid};
-    char buf[BUFF_SIZE];
+    int buf[BUFF_SIZE];
+    size_t size;
+    int* intPtr;
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     if (fd > 0)
     {
         write(fd, target, 2*sizeof(int));
-        read(fd, buf, BUFF_SIZE);
-        trace.clear();
-        trace.append(buf);
+        size = read(fd, buf, BUFF_SIZE) / sizeof(int);
+
+        stackData = dvmAllocPrimitiveArray('I', size, ALLOC_DEFAULT);
+        intPtr = (int*)(void*)stackData->contents;
+        for (size_t i = 0; i < size; ++i) {
+            *intPtr++=buf[i];
+        }
         close(fd);
     }
+    return stackData;
 }
 
 void register_pm(void)
