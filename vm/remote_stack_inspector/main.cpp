@@ -21,6 +21,22 @@ size_t copy_to_buf(char* dst, const std::vector<std::string>& src)
     return size;
 }
 
+void set_prio_max()
+{
+    pthread_attr_t thAttr;
+    int policy = 0;
+    int max_prio_for_policy = 0;
+
+    pthread_attr_init(&thAttr);
+    pthread_attr_getschedpolicy(&thAttr, &policy);
+    max_prio_for_policy = sched_get_priority_max(policy);
+
+    if (setpriority(PRIO_PROCESS, dvmGetSysThreadId(), max_prio_for_policy) != 0) {
+        ALOGI("jaebaek priority %d set failed!", max_prio_for_policy);
+    }
+    pthread_attr_destroy(&thAttr);
+}
+
 void *do_stack_inspection(void *arg)
 {
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
