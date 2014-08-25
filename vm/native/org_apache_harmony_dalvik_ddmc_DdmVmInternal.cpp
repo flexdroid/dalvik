@@ -114,12 +114,11 @@ static void
 {
     pid_t pid = (pid_t)args[0];
     pid_t tid = (pid_t)args[1];
-    StringObject* trace;
+    ArrayObject* trace;
     std::string raw_trace;
 
     request_stack_inspection(pid, tid, raw_trace);
-    trace = dvmCreateStringFromCstr(raw_trace.c_str());
-    dvmReleaseTrackedAlloc((Object*) trace, NULL);
+    trace = NULL;
     RETURN_PTR(trace);
 }
 
@@ -190,7 +189,7 @@ const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmVmInternal[] = {
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_heapSegmentNotify },
     { "getStackTraceById",  "(I)[Ljava/lang/StackTraceElement;",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceById },
-    { "getStackTraceBySysTid",  "(II)Ljava/lang/String;",
+    { "getStackTraceBySysTid",  "(II)[I",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_getStackTraceBySysTid },
     { "registerPM",  "()V",
       Dalvik_org_apache_harmony_dalvik_ddmc_DdmVmInternal_registerPM },
