@@ -419,6 +419,13 @@ ArrayObject* dvmDdmGenerateThreadStats()
 }
 
 
+inline void timestamp(const char *TAG)
+{
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    ALOGI("%s at %lld", TAG, now.tv_sec*1000000LL + now.tv_usec);
+}
+
 /*
  * jaebaek: get stack trace as an array of strings.
  */
@@ -429,6 +436,7 @@ void dvmDdmGetStackTrace(pid_t sysTid, std::vector<std::string>& trace)
     int* traceBuf;
     size_t i;
 
+    timestamp("dvmDdmGetStackTrace start");
     dvmLockThreadList(self);
 
     for (thread = gDvm.threadList; thread != NULL; thread = thread->next) {
@@ -439,6 +447,7 @@ void dvmDdmGetStackTrace(pid_t sysTid, std::vector<std::string>& trace)
     if (thread == NULL) {
         ALOGI("dvmDdmGetStackTrace: sysTid=%d not found", sysTid);
         dvmUnlockThreadList();
+        timestamp("dvmDdmGetStackTrace end");
         return;
     }
 
@@ -467,6 +476,7 @@ void dvmDdmGetStackTrace(pid_t sysTid, std::vector<std::string>& trace)
         traceBuf++;
     }
     free(traceBuf);
+    timestamp("dvmDdmGetStackTrace end");
 }
 
 /*
