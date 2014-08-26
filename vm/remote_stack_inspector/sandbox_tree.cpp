@@ -1,8 +1,9 @@
-#include <iostream>
 #include <vector>
 #include <string>
 #include <cstring>
 #include <sstream>
+
+#include "main.h"
 
 #define BUF_SIZE 1024
 
@@ -14,17 +15,9 @@ struct node {
 
 static node root;
 
-static void travel(const node& parent)
-{
-    cout << parent.token << ":" << parent.key << endl;
-    for (int i = 0; i < parent.chdlist.size(); ++i) {
-        travel(parent.chdlist[i]);
-    }
-}
-
 inline void tokenize_dot(std::string& str, std::vector<std::string>& tokens)
 {
-    for (int i = 0; i < str.size(); ++i) {
+    for (size_t i = 0; i < str.size(); ++i) {
         if (str[i] == '.') {
             str[i] = ' ';
         }
@@ -53,9 +46,9 @@ void create_sandbox_tree(const char *buf)
         }
 
         node *parent = &root;
-        for (int i = 0; i < tokens.size(); ++i) {
+        for (size_t i = 0; i < tokens.size(); ++i) {
             node *matching_chd = NULL;
-            for (int j = 0; j < parent->chdlist.size(); ++j) {
+            for (size_t j = 0; j < parent->chdlist.size(); ++j) {
                 if (!(parent->chdlist[j].token).compare(tokens[i])) {
                     matching_chd = &(parent->chdlist[j]);
                     break;
@@ -83,7 +76,7 @@ int query_sandbox_key(const std::string& query)
         if (query[offset] == '.') {
             word[i] = '\0';
             bool is_matched = false;
-            for (int j = 0; j < parent->chdlist.size(); ++j) {
+            for (size_t j = 0; j < parent->chdlist.size(); ++j) {
                 if (!strncmp(word, parent->chdlist[j].token.c_str(), i)) {
                     parent = &(parent->chdlist[j]);
                     is_matched = true;
@@ -101,7 +94,7 @@ int query_sandbox_key(const std::string& query)
     }
     if (offset == query.size()) {
         word[i] = '\0';
-        for (int j = 0; j < parent->chdlist.size(); ++j) {
+        for (size_t j = 0; j < parent->chdlist.size(); ++j) {
             if (!strncmp(word, parent->chdlist[j].token.c_str(), i)) {
                 parent = &(parent->chdlist[j]);
                 break;

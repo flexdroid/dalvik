@@ -186,6 +186,7 @@ LOCAL_SRC_FILES := \
 	reflect/Proxy.cpp \
 	reflect/Reflect.cpp \
 	remote_stack_inspector/main.cpp \
+	remote_stack_inspector/sandbox_tree.cpp \
 	test/AtomicTest.cpp.arm \
 	test/TestHash.cpp \
 	test/TestIndirectRefTable.cpp

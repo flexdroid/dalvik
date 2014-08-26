@@ -39,11 +39,16 @@ void set_prio_max()
 
 void *do_stack_inspection(void *arg)
 {
+    // for IPC
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     pid_t target_tid;
     int buf[BUFF_SIZE];
+
+    // for stack trace
     int* traceBuf;
     size_t stackDepth = 0, i, numSB;
+
+    // for cache
     std::map<Method*, int> sandboxCache;
     std::map<Method*, int>::iterator it;
 
@@ -70,13 +75,10 @@ void *do_stack_inspection(void *arg)
                 Method* meth = (Method*) *traceBuf++;
                 it = sandboxCache.find(meth);
                 if (it == sandboxCache.end()) {
-                    /*
-                     * Add meth to sandboxCache
-                     * if meth is sandboxed, register sandbox index
-                     *otherwise, register -1
-                     */
-
-                    // check whether meth is sandboxed
+                    std::string methName(meth->name);
+                    methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
+                        + "." + methName;
+                    sandboxCache[meth] = query_sandbox_key(methName);
                 } else {
                     if (it->second != -1) {
                         buf[numSB++] = 0;//it->second;
