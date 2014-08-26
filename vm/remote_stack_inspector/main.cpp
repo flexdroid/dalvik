@@ -41,16 +41,42 @@ void *do_stack_inspection(void *arg)
 {
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     pid_t target_tid;
-    int test = 0;
+    int buf[BUFF_SIZE];
+    int* traceBuf;
+    size_t stackDepth = 0, i, numSB;
+    std::map<Method*, int> sandboxCache;
+    std::map<Method*, int>::iterator it;
 
     if (fd > 0)
     {
+        set_prio_max();
         ioctl(fd, 1, 0);
         while(1)
         {
             read(fd, &target_tid, sizeof(pid_t));
-            //dvmDdmGetStackTrace(target_tid, stack_info);
-            write(fd, &test, sizeof(int));
+            stackDepth = dvmDdmGetStackTrace(target_tid, &traceBuf);
+            /*
+             * convert stack trace to sandbox index.
+             */
+            numSB = 0;
+            for (i = 0; i < stackDepth; i++) {
+                Method* meth = (Method*) *traceBuf++;
+                it = sandboxCache.find(meth);
+                if (it == sandboxCache.end()) {
+                    // Add meth to sandboxCache
+                    // if meth is sandboxed, register sandbox index
+                    // otherwise, register -1
+                    std::string methName(meth->name);
+                    methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
+                        + "." + methName;
+                } else {
+                    if (it->second != -1) {
+                        buf[numSB++] = 0;//it->second;
+                    }
+                }
+            }
+            free(traceBuf);
+            write(fd, buf, numSB*sizeof(int));
         }
         close(fd);
     }

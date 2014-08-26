@@ -680,7 +680,6 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
                 ALOGE("error in stack inspector creation");
                 exit(0);
             }
-            set_prio_max(thread_t);
         }
     } else if (pid > 0) {
         /* the parent process */

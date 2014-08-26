@@ -427,13 +427,12 @@ inline void timestamp(const char *TAG)
 }
 
 /*
- * jaebaek: get stack trace as an array of strings.
+ * jaebaek: get stack trace.
  */
-void dvmDdmGetStackTrace(pid_t sysTid, std::vector<std::string>& trace)
+size_t dvmDdmGetStackTrace(pid_t sysTid, const int** traceBuf)
 {
     Thread* self = dvmThreadSelf();
     Thread* thread;
-    int* traceBuf;
     size_t i;
 
     timestamp("dvmDdmGetStackTrace start");
@@ -459,24 +458,13 @@ void dvmDdmGetStackTrace(pid_t sysTid, std::vector<std::string>& trace)
     size_t stackDepth;
     if (thread != self)
         dvmSuspendThread(thread);
-    traceBuf = dvmFillInStackTraceRaw(thread, &stackDepth);
+    *traceBuf = dvmFillInStackTraceRaw(thread, &stackDepth);
     if (thread != self)
         dvmResumeThread(thread);
     dvmUnlockThreadList();
 
-    /*
-     * jaebaek: get class and method name as string
-     */
-    for (i = 0; i < stackDepth; i++) {
-        Method* meth = (Method*) *traceBuf++;
-        std::string methName(meth->name);
-        methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
-            + "." + methName;
-        trace.push_back(methName);
-        traceBuf++;
-    }
-    free(traceBuf);
     timestamp("dvmDdmGetStackTrace end");
+    return stackDepth;
 }
 
 /*
