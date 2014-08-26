@@ -49,8 +49,15 @@ void *do_stack_inspection(void *arg)
 
     if (fd > 0)
     {
+        // set prio as highest
         set_prio_max();
+
+        // register as stack inspector
         ioctl(fd, 1, 0);
+
+        // construct method name to sandbox key map
+
+        // main loop to response stack inspection
         while(1)
         {
             read(fd, &target_tid, sizeof(pid_t));
@@ -63,12 +70,13 @@ void *do_stack_inspection(void *arg)
                 Method* meth = (Method*) *traceBuf++;
                 it = sandboxCache.find(meth);
                 if (it == sandboxCache.end()) {
-                    // Add meth to sandboxCache
-                    // if meth is sandboxed, register sandbox index
-                    // otherwise, register -1
-                    std::string methName(meth->name);
-                    methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
-                        + "." + methName;
+                    /*
+                     * Add meth to sandboxCache
+                     * if meth is sandboxed, register sandbox index
+                     *otherwise, register -1
+                     */
+
+                    // check whether meth is sandboxed
                 } else {
                     if (it->second != -1) {
                         buf[numSB++] = 0;//it->second;

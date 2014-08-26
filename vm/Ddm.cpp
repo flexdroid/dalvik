@@ -429,11 +429,10 @@ inline void timestamp(const char *TAG)
 /*
  * jaebaek: get stack trace.
  */
-size_t dvmDdmGetStackTrace(pid_t sysTid, const int** traceBuf)
+size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf)
 {
     Thread* self = dvmThreadSelf();
     Thread* thread;
-    size_t i;
 
     timestamp("dvmDdmGetStackTrace start");
     dvmLockThreadList(self);
@@ -447,7 +446,7 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, const int** traceBuf)
         ALOGI("dvmDdmGetStackTrace: sysTid=%d not found", sysTid);
         dvmUnlockThreadList();
         timestamp("dvmDdmGetStackTrace end");
-        return;
+        return 0;
     }
 
     /*
