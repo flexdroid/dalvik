@@ -2,7 +2,16 @@
 #include "../Dalvik.h"
 #include "../Ddm.h"
 
-#define  BUFF_SIZE      (16 * 1024)
+#define  BUFF_SIZE      1024
+
+enum {
+    CHANNEL_REGISTER_PM = 0,
+    CHANNEL_REGISTER_INSPECTOR,
+    CHANNEL_UNREGISTER,
+    CHANNEL_PM_WAIT,
+    CHANNEL_REQUEST_PM,
+    CHANNEL_PM_RESPONSE,
+};
 
 size_t copy_to_buf(char* dst, const std::vector<std::string>& src)
 {
@@ -42,7 +51,8 @@ void *do_stack_inspection(void *arg)
     // for IPC
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     pid_t target_tid;
-    int buf[BUFF_SIZE];
+    char buf[4*BUFF_SIZE];
+    int size;
 
     // for stack trace
     int* traceBuf;
@@ -58,9 +68,12 @@ void *do_stack_inspection(void *arg)
         set_prio_max();
 
         // register as stack inspector
-        ioctl(fd, 1, 0);
+        ioctl(fd, CHANNEL_REGISTER_INSPECTOR, 0);
 
         // construct method name to sandbox key map
+        size = ioctl(fd, CHANNEL_REQUEST_PM, buf);
+        buf[size] = '\0';
+        create_sandbox_tree(buf);
 
         // main loop to response stack inspection
         while(1)
@@ -81,7 +94,7 @@ void *do_stack_inspection(void *arg)
                     sandboxCache[meth] = query_sandbox_key(methName);
                 } else {
                     if (it->second != -1) {
-                        buf[numSB++] = 0;//it->second;
+                        buf[numSB++] = it->second;
                     }
                 }
             }
@@ -121,7 +134,7 @@ void register_pm(void)
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     if (fd > 0)
     {
-        ioctl(fd, 0, 0);
+        ioctl(fd, CHANNEL_REGISTER_PM, 0);
         close(fd);
     }
 }
