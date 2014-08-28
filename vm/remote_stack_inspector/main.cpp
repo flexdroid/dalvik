@@ -13,23 +13,6 @@ enum {
     CHANNEL_PM_RESPONSE,
 };
 
-size_t copy_to_buf(char* dst, const std::vector<std::string>& src)
-{
-    size_t size = 0;
-    for (size_t i = 0; i < src.size(); ++i) {
-        strncpy(&dst[size], src[i].c_str(), src[i].size());
-        size += src[i].size();
-        dst[size++] = ' ';
-    }
-    /*
-     * jaebaek: insert NULL at the end of char array
-     *          Should I really do this?
-     */
-    if (size)
-        dst[size - 1] = '\0';
-    return size;
-}
-
 void set_prio_max()
 {
     pthread_attr_t thAttr;
@@ -52,6 +35,7 @@ void *do_stack_inspection(void *arg)
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     pid_t target_tid;
     char buf[4*BUFF_SIZE];
+    int key[BUFF_SIZE];
     int size;
 
     // for stack trace
@@ -94,12 +78,12 @@ void *do_stack_inspection(void *arg)
                     sandboxCache[meth] = query_sandbox_key(methName);
                 } else {
                     if (it->second != -1) {
-                        buf[numSB++] = it->second;
+                        key[numSB++] = it->second;
                     }
                 }
             }
             free(traceBuf);
-            write(fd, buf, numSB*sizeof(int));
+            write(fd, key, numSB*sizeof(int));
         }
         close(fd);
     }
