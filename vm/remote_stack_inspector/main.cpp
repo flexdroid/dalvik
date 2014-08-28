@@ -81,6 +81,7 @@ void *do_stack_inspection(void *arg)
                         key[numSB++] = it->second;
                     }
                 }
+                traceBuf++;
             }
             free(traceBuf);
             write(fd, key, numSB*sizeof(int));
