@@ -45,6 +45,7 @@ void *do_stack_inspection(void *arg)
     // for cache
     std::map<Method*, int> sandboxCache;
     std::map<Method*, int>::iterator it;
+    std::map<std::string, Method*> cacheChecker;
 
     if (fd > 0)
     {
@@ -75,7 +76,11 @@ void *do_stack_inspection(void *arg)
                     std::string methName(meth->name);
                     methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
                         + "." + methName;
+                    if (cacheChecker.find(methName) != cacheChecker.end()) {
+                        ALOGI("jaebaek cacheChecker has %s", methName.c_str());
+                    }
                     sandboxCache[meth] = query_sandbox_key(methName);
+                    cacheChecker[methName] = meth;
                 } else {
                     if (it->second != -1) {
                         key[numSB++] = it->second;
