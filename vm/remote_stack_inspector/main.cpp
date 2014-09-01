@@ -47,6 +47,7 @@ void *do_stack_inspection(void *arg)
     std::map<Method*, int> sandboxCache;
     std::map<Method*, int>::iterator it;
     //std::set<std::string> cacheChecker;
+    int cacheHit = 0, cacheMiss = 0;
 
     if (fd > 0)
     {
@@ -93,9 +94,27 @@ void *do_stack_inspection(void *arg)
                     }
                     */
                     sandboxCache[meth] = query_sandbox_key(methName);
+
+                    /* cache miss check */
+                    ++cacheMiss;
+                    if (cacheMiss + cacheHit >= 200) {
+                        ALOGI("jaebaek cacheMiss rate = %d / %d",
+                                cacheMiss, (cacheMiss + cacheHit));
+                        cacheMiss = 0;
+                        cacheHit = 0;
+                    }
                 } else {
                     if (it->second != -1) {
                         key[numSB++] = it->second;
+                    }
+
+                    /* cache miss check */
+                    ++cacheHit;
+                    if (cacheMiss + cacheHit >= 200) {
+                        ALOGI("jaebaek cacheMiss rate = %d / %d",
+                                cacheMiss, (cacheMiss + cacheHit));
+                        cacheMiss = 0;
+                        cacheHit = 0;
                     }
                 }
                 traceBufMock++;
