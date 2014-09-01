@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <string>
 #include <map>
+#include <set>
 
 #include <sys/time.h>
 #include <sys/resource.h>

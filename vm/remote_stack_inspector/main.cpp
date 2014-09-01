@@ -40,12 +40,13 @@ void *do_stack_inspection(void *arg)
 
     // for stack trace
     int* traceBuf;
+    int* traceBufMock;
     size_t stackDepth = 0, i, numSB;
 
     // for cache
     std::map<Method*, int> sandboxCache;
     std::map<Method*, int>::iterator it;
-    std::map<std::string, Method*> cacheChecker;
+    //std::set<std::string> cacheChecker;
 
     if (fd > 0)
     {
@@ -64,31 +65,43 @@ void *do_stack_inspection(void *arg)
         while(1)
         {
             read(fd, &target_tid, sizeof(pid_t));
+            ALOGI("jaebaek stack inspection");
+            traceBuf = NULL;
             stackDepth = dvmDdmGetStackTrace(target_tid, &traceBuf);
+            if (!stackDepth || !traceBuf) {
+                ALOGI("jaebaek end inspection");
+                write(fd, key, 0);
+                continue;
+            }
+            traceBufMock = traceBuf;
             /*
              * convert stack trace to sandbox index.
              */
             numSB = 0;
             for (i = 0; i < stackDepth; i++) {
-                Method* meth = (Method*) *traceBuf++;
+                Method* meth = (Method*) *traceBufMock++;
                 it = sandboxCache.find(meth);
                 if (it == sandboxCache.end()) {
                     std::string methName(meth->name);
                     methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
                         + "." + methName;
+                    /*
                     if (cacheChecker.find(methName) != cacheChecker.end()) {
                         ALOGI("jaebaek cacheChecker has %s", methName.c_str());
+                    } else {
+                        cacheChecker.insert(methName);
                     }
+                    */
                     sandboxCache[meth] = query_sandbox_key(methName);
-                    cacheChecker[methName] = meth;
                 } else {
                     if (it->second != -1) {
                         key[numSB++] = it->second;
                     }
                 }
-                traceBuf++;
+                traceBufMock++;
             }
             free(traceBuf);
+            ALOGI("jaebaek end inspection");
             write(fd, key, numSB*sizeof(int));
         }
         close(fd);
