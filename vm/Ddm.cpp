@@ -429,7 +429,7 @@ inline void timestamp(const char *TAG)
 /*
  * jaebaek: get stack trace.
  */
-size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf)
+size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
 {
     Thread* self = dvmThreadSelf();
     Thread* thread;
@@ -455,10 +455,10 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf)
      * our own stack trace, skip the suspend/resume.
      */
     size_t stackDepth;
-    if (thread != self)
+    if (thread != self && !suspended)
         dvmSuspendThread(thread);
     *traceBuf = dvmFillInStackTraceRaw(thread, &stackDepth);
-    if (thread != self)
+    if (thread != self && !suspended)
         dvmResumeThread(thread);
     dvmUnlockThreadList();
 

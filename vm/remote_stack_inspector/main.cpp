@@ -29,11 +29,16 @@ void set_prio_max()
     pthread_attr_destroy(&thAttr);
 }
 
+struct read_data {
+    pid_t target_tid;
+    int is_target_thd_suspended;
+};
+
 void *do_stack_inspection(void *arg)
 {
     // for IPC
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
-    pid_t target_tid;
+    read_data __read_data;
     char buf[4*BUFF_SIZE];
     int key[BUFF_SIZE];
     int size;
@@ -65,10 +70,13 @@ void *do_stack_inspection(void *arg)
         // main loop to response stack inspection
         while(1)
         {
-            read(fd, &target_tid, sizeof(pid_t));
+            read(fd, &__read_data, sizeof(read_data));
             ALOGI("jaebaek stack inspection");
             traceBuf = NULL;
-            stackDepth = dvmDdmGetStackTrace(target_tid, &traceBuf);
+            stackDepth = dvmDdmGetStackTrace(
+                    __read_data.target_tid,
+                    &traceBuf,
+                    __read_data.is_target_thd_suspended);
             if (!stackDepth || !traceBuf) {
                 ALOGI("jaebaek end inspection");
                 write(fd, key, 0);
