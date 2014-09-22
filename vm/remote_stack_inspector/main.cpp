@@ -71,14 +71,12 @@ void *do_stack_inspection(void *arg)
         while(1)
         {
             read(fd, &__read_data, sizeof(read_data));
-            ALOGI("jaebaek stack inspection");
             traceBuf = NULL;
             stackDepth = dvmDdmGetStackTrace(
                     __read_data.target_tid,
                     &traceBuf,
                     __read_data.is_target_thd_suspended);
             if (!stackDepth || !traceBuf) {
-                ALOGI("jaebaek end inspection");
                 write(fd, key, 0);
                 continue;
             }
@@ -92,8 +90,8 @@ void *do_stack_inspection(void *arg)
                 it = sandboxCache.find(meth);
                 if (it == sandboxCache.end()) {
                     std::string methName(meth->name);
-                    methName = dvmHumanReadableDescriptor(meth->clazz->descriptor)
-                        + "." + methName;
+                    std::string dotName(dvmHumanReadableDescriptor(meth->clazz->descriptor));
+                    methName = dotName + "." + methName;
                     /*
                     if (cacheChecker.find(methName) != cacheChecker.end()) {
                         ALOGI("jaebaek cacheChecker has %s", methName.c_str());
@@ -105,7 +103,7 @@ void *do_stack_inspection(void *arg)
 
                     /* cache miss check */
                     ++cacheMiss;
-                    if (cacheMiss + cacheHit >= 200) {
+                    if (cacheMiss + cacheHit >= 2000) {
                         ALOGI("jaebaek cacheMiss rate = %d / %d",
                                 cacheMiss, (cacheMiss + cacheHit));
                         cacheMiss = 0;
@@ -118,7 +116,7 @@ void *do_stack_inspection(void *arg)
 
                     /* cache miss check */
                     ++cacheHit;
-                    if (cacheMiss + cacheHit >= 200) {
+                    if (cacheMiss + cacheHit >= 2000) {
                         ALOGI("jaebaek cacheMiss rate = %d / %d",
                                 cacheMiss, (cacheMiss + cacheHit));
                         cacheMiss = 0;
@@ -128,7 +126,6 @@ void *do_stack_inspection(void *arg)
                 traceBufMock++;
             }
             free(traceBuf);
-            ALOGI("jaebaek end inspection");
             write(fd, key, numSB*sizeof(int));
         }
         close(fd);
@@ -146,13 +143,15 @@ void *request_stack_inspection(const pid_t pid, const pid_t tid)
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     if (fd > 0)
     {
-        write(fd, target, 2*sizeof(int));
-        size = read(fd, buf, BUFF_SIZE) / sizeof(int);
+        size = write(fd, target, 2*sizeof(int));
+        if (size == 2*sizeof(int)) {
+            size = read(fd, buf, BUFF_SIZE) / sizeof(int);
 
-        stackData = dvmAllocPrimitiveArray('I', size, ALLOC_DEFAULT);
-        intPtr = (int*)(void*)stackData->contents;
-        for (size_t i = 0; i < size; ++i) {
-            *intPtr++=buf[i];
+            stackData = dvmAllocPrimitiveArray('I', size, ALLOC_DEFAULT);
+            intPtr = (int*)(void*)stackData->contents;
+            for (size_t i = 0; i < size; ++i) {
+                *intPtr++=buf[i];
+            }
         }
         close(fd);
     }

@@ -373,6 +373,7 @@ static inline void unlockThreadSuspendCount()
  * execution, but it *can* happen during shutdown when daemon threads
  * are being suspended.
  */
+int lock_holder = -1;
 void dvmLockThreadList(Thread* self)
 {
     ThreadStatus oldStatus;
@@ -388,6 +389,7 @@ void dvmLockThreadList(Thread* self)
         oldStatus = THREAD_UNDEFINED;  // shut up gcc
     }
 
+    lock_holder = dvmGetSysThreadId();
     dvmLockMutex(&gDvm.threadListLock);
 
     if (self != NULL)
@@ -402,6 +404,7 @@ void dvmLockThreadList(Thread* self)
  */
 bool dvmTryLockThreadList()
 {
+    lock_holder = dvmGetSysThreadId();
     return (dvmTryLockMutex(&gDvm.threadListLock) == 0);
 }
 
@@ -411,6 +414,7 @@ bool dvmTryLockThreadList()
 void dvmUnlockThreadList()
 {
     dvmUnlockMutex(&gDvm.threadListLock);
+    lock_holder = -1;
 }
 
 /*
@@ -897,11 +901,13 @@ pid_t dvmGetSysThreadId()
  * NOTE: The threadListLock must be held by the caller (needed for
  * assignThreadId()).
  */
+std::map<pid_t, Thread*> reverse_thd_map;
 static bool prepareThread(Thread* thread)
 {
     assignThreadId(thread);
     thread->handle = pthread_self();
     thread->systemTid = dvmGetSysThreadId();
+    reverse_thd_map[thread->systemTid] =  thread;
 
     //ALOGI("SYSTEM TID IS %d (pid is %d)", (int) thread->systemTid,
     //    (int) getpid());
@@ -2465,7 +2471,7 @@ static void waitForThreadSuspend(Thread* self, Thread* thread)
          */
         if (gDvmJit.pJitEntryTable && retryCount > 0 &&
             gDvmJit.hasNewChain && thread->inJitCodeCache) {
-            ALOGD("JIT unchain all for threadid=%d", thread->threadId);
+            ALOGD("JIT unchain all for threadid=%d", thread->systemTid);
             dvmJitUnchainAll();
         }
 #endif
@@ -2477,8 +2483,8 @@ static void waitForThreadSuspend(Thread* self, Thread* thread)
         if (!dvmIterativeSleep(sleepIter++, spinSleepTime, startWhen)) {
             if (spinSleepTime != FIRST_SLEEP) {
                 ALOGW("threadid=%d: spin on suspend #%d threadid=%d (pcf=%d)",
-                    self->threadId, retryCount,
-                    thread->threadId, priChangeFlags);
+                    self->systemTid, retryCount,
+                    thread->systemTid, priChangeFlags);
                 if (retryCount > 1) {
                     /* stack trace logging is slow; skip on first iter */
                     dumpWedgedThread(thread);
@@ -2496,7 +2502,7 @@ static void waitForThreadSuspend(Thread* self, Thread* thread)
 
                 /* log this after -- long traces will scroll off log */
                 ALOGE("threadid=%d: stuck on threadid=%d, giving up",
-                    self->threadId, thread->threadId);
+                    self->systemTid, thread->systemTid);
 
                 /* try to get a debuggerd dump from the spinning thread */
                 dvmNukeThread(thread);
@@ -2508,7 +2514,7 @@ static void waitForThreadSuspend(Thread* self, Thread* thread)
 
     if (complained) {
         ALOGW("threadid=%d: spin on suspend resolved in %lld msec",
-            self->threadId,
+            self->systemTid,
             (dvmGetRelativeTimeUsec() - firstStartWhen) / 1000);
         //dvmDumpThread(thread, false);   /* suspended, so dump is safe */
     }

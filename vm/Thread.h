@@ -343,6 +343,11 @@ pid_t dvmGetSysThreadId(void);
  */
 Thread* dvmThreadSelf(void);
 
+#include <map>
+
+extern int lock_holder;
+extern std::map<pid_t, Thread*> reverse_thd_map;
+
 /* grab the thread list global lock */
 void dvmLockThreadList(Thread* self);
 /* try to grab the thread list global lock */

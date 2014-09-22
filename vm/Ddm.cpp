@@ -433,19 +433,27 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
 {
     Thread* self = dvmThreadSelf();
     Thread* thread;
+    std::map<pid_t, Thread*>::iterator it;
+    ThreadStatus oldStatus;
 
-    timestamp("dvmDdmGetStackTrace start");
+    if (lock_holder == sysTid)
+        return 0;
+
+    it = reverse_thd_map.find(sysTid);
+    if (it == reverse_thd_map.end())
+        return 0;
+
+    if (suspended)
+        oldStatus = dvmChangeStatus(it->second, THREAD_VMWAIT);
     dvmLockThreadList(self);
 
     for (thread = gDvm.threadList; thread != NULL; thread = thread->next) {
-        ALOGI("dvmDdmGetStackTrace: thread->systemTid=%d in loop", thread->systemTid);
         if (thread->systemTid == sysTid)
             break;
     }
     if (thread == NULL) {
-        ALOGI("dvmDdmGetStackTrace: sysTid=%d not found", sysTid);
+        reverse_thd_map.erase(it);
         dvmUnlockThreadList();
-        timestamp("dvmDdmGetStackTrace end");
         return 0;
     }
 
@@ -461,8 +469,9 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
     if (thread != self && !suspended)
         dvmResumeThread(thread);
     dvmUnlockThreadList();
+    if (suspended)
+        dvmChangeStatus(it->second, oldStatus);
 
-    timestamp("dvmDdmGetStackTrace end");
     return stackDepth;
 }
 

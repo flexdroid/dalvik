@@ -661,6 +661,7 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
          */
         Thread* thread = dvmThreadSelf();
         thread->systemTid = dvmGetSysThreadId();
+        reverse_thd_map[thread->systemTid] =  thread;
 
         /* configure additional debug options */
         enableDebugFeatures(debugFlags);
