@@ -40,7 +40,7 @@ void *do_stack_inspection(void *arg)
     int fd = open("/dev/stack_inspection_channel", O_RDWR);
     read_data __read_data;
     char buf[4*BUFF_SIZE];
-    int key[BUFF_SIZE];
+    int keys[BUFF_SIZE];
     int size;
 
     // for stack trace
@@ -53,6 +53,7 @@ void *do_stack_inspection(void *arg)
     std::map<Method*, int>::iterator it;
     //std::set<std::string> cacheChecker;
     int cacheHit = 0, cacheMiss = 0;
+    int key;
 
     if (fd > 0)
     {
@@ -77,7 +78,7 @@ void *do_stack_inspection(void *arg)
                     &traceBuf,
                     __read_data.is_target_thd_suspended);
             if (!stackDepth || !traceBuf) {
-                write(fd, key, 0);
+                write(fd, keys, 0);
                 continue;
             }
             traceBufMock = traceBuf;
@@ -99,7 +100,11 @@ void *do_stack_inspection(void *arg)
                         cacheChecker.insert(methName);
                     }
                     */
-                    sandboxCache[meth] = query_sandbox_key(methName);
+                    key = query_sandbox_key(methName);
+                    sandboxCache[meth] = key;
+                    if (key != -1) {
+                        keys[numSB++] = key;
+                    }
 
                     /* cache miss check */
                     ++cacheMiss;
@@ -111,7 +116,7 @@ void *do_stack_inspection(void *arg)
                     }
                 } else {
                     if (it->second != -1) {
-                        key[numSB++] = it->second;
+                        keys[numSB++] = it->second;
                     }
 
                     /* cache miss check */
@@ -126,7 +131,7 @@ void *do_stack_inspection(void *arg)
                 traceBufMock++;
             }
             free(traceBuf);
-            write(fd, key, numSB*sizeof(int));
+            write(fd, keys, numSB*sizeof(int));
         }
         close(fd);
     }
