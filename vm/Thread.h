@@ -347,6 +347,8 @@ Thread* dvmThreadSelf(void);
 
 extern int lock_holder;
 extern std::map<pid_t, Thread*> reverse_thd_map;
+extern std::map<int, int> lock_waiters;
+extern pthread_mutex_t lock_waiters_mutex;
 
 /* grab the thread list global lock */
 void dvmLockThreadList(Thread* self);

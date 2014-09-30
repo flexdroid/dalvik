@@ -71,7 +71,15 @@ void *do_stack_inspection(void *arg)
         // main loop to response stack inspection
         while(1)
         {
-            read(fd, &__read_data, sizeof(read_data));
+            __read_data.target_tid = 0;
+            __read_data.is_target_thd_suspended = 0;
+            size = read(fd, &__read_data, sizeof(read_data));
+            if (size != sizeof(read_data) ||
+                    (__read_data.is_target_thd_suspended != 0
+                     && __read_data.is_target_thd_suspended != 1)) {
+                write(fd, keys, 0);
+                continue;
+            }
             traceBuf = NULL;
             stackDepth = dvmDdmGetStackTrace(
                     __read_data.target_tid,

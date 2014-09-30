@@ -249,6 +249,7 @@ static void waitForThreadSuspend(Thread* self, Thread* thread);
  * up some basic stuff so that dvmThreadSelf() will work when we start
  * loading classes (e.g. to check for exceptions).
  */
+pthread_mutex_t lock_waiters_mutex;
 bool dvmThreadStartup()
 {
     Thread* thread;
@@ -270,6 +271,7 @@ bool dvmThreadStartup()
     dvmInitMutex(&gDvm._threadSuspendLock);
     dvmInitMutex(&gDvm.threadSuspendCountLock);
     pthread_cond_init(&gDvm.threadSuspendCountCond, NULL);
+    dvmInitMutex(&lock_waiters_mutex);
 
     /*
      * Dedicated monitor for Thread.sleep().
@@ -373,7 +375,7 @@ static inline void unlockThreadSuspendCount()
  * execution, but it *can* happen during shutdown when daemon threads
  * are being suspended.
  */
-int lock_holder = -1;
+std::map<int, int> lock_waiters;
 void dvmLockThreadList(Thread* self)
 {
     ThreadStatus oldStatus;
@@ -389,7 +391,11 @@ void dvmLockThreadList(Thread* self)
         oldStatus = THREAD_UNDEFINED;  // shut up gcc
     }
 
-    lock_holder = dvmGetSysThreadId();
+    pid_t tid = dvmGetSysThreadId();
+    pid_t pid = getpid();
+    dvmLockMutex(&lock_waiters_mutex);
+    lock_waiters[tid] = pid;
+    dvmUnlockMutex(&lock_waiters_mutex);
     dvmLockMutex(&gDvm.threadListLock);
 
     if (self != NULL)
@@ -404,7 +410,11 @@ void dvmLockThreadList(Thread* self)
  */
 bool dvmTryLockThreadList()
 {
-    lock_holder = dvmGetSysThreadId();
+    pid_t tid = dvmGetSysThreadId();
+    pid_t pid = getpid();
+    dvmLockMutex(&lock_waiters_mutex);
+    lock_waiters[tid] = pid;
+    dvmUnlockMutex(&lock_waiters_mutex);
     return (dvmTryLockMutex(&gDvm.threadListLock) == 0);
 }
 
@@ -414,7 +424,10 @@ bool dvmTryLockThreadList()
 void dvmUnlockThreadList()
 {
     dvmUnlockMutex(&gDvm.threadListLock);
-    lock_holder = -1;
+    pid_t tid = dvmGetSysThreadId();
+    dvmLockMutex(&lock_waiters_mutex);
+    lock_waiters.erase(tid);
+    dvmUnlockMutex(&lock_waiters_mutex);
 }
 
 /*
@@ -907,7 +920,9 @@ static bool prepareThread(Thread* thread)
     assignThreadId(thread);
     thread->handle = pthread_self();
     thread->systemTid = dvmGetSysThreadId();
+    dvmLockMutex(&lock_waiters_mutex);
     reverse_thd_map[thread->systemTid] =  thread;
+    dvmUnlockMutex(&lock_waiters_mutex);
 
     //ALOGI("SYSTEM TID IS %d (pid is %d)", (int) thread->systemTid,
     //    (int) getpid());

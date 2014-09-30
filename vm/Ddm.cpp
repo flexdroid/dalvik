@@ -436,12 +436,20 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
     std::map<pid_t, Thread*>::iterator it;
     ThreadStatus oldStatus;
 
-    if (lock_holder == sysTid)
+    dvmLockMutex(&lock_waiters_mutex);
+    if (lock_waiters.find(sysTid) != lock_waiters.end()) {
+        dvmUnlockMutex(&lock_waiters_mutex);
         return 0;
+    }
+    dvmUnlockMutex(&lock_waiters_mutex);
 
+    dvmLockMutex(&lock_waiters_mutex);
     it = reverse_thd_map.find(sysTid);
-    if (it == reverse_thd_map.end())
+    if (it == reverse_thd_map.end()) {
+        dvmUnlockMutex(&lock_waiters_mutex);
         return 0;
+    }
+    dvmUnlockMutex(&lock_waiters_mutex);
 
     if (suspended)
         oldStatus = dvmChangeStatus(it->second, THREAD_VMWAIT);
@@ -452,7 +460,9 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
             break;
     }
     if (thread == NULL) {
+        dvmLockMutex(&lock_waiters_mutex);
         reverse_thd_map.erase(it);
+        dvmUnlockMutex(&lock_waiters_mutex);
         dvmUnlockThreadList();
         return 0;
     }
