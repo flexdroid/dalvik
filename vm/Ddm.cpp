@@ -436,6 +436,7 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
     std::map<pid_t, Thread*>::iterator it;
     ThreadStatus oldStatus;
 
+    // to skip remote stack inspection in the middle of GC
     dvmLockMutex(&lock_waiters_mutex);
     if (lock_waiters.find(sysTid) != lock_waiters.end()) {
         dvmUnlockMutex(&lock_waiters_mutex);
@@ -443,6 +444,7 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
     }
     dvmUnlockMutex(&lock_waiters_mutex);
 
+    // if target thread is not Java thread, skip
     dvmLockMutex(&lock_waiters_mutex);
     it = reverse_thd_map.find(sysTid);
     if (it == reverse_thd_map.end()) {
