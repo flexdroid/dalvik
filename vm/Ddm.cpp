@@ -444,7 +444,7 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
     }
     dvmUnlockMutex(&lock_waiters_mutex);
 
-    // if target thread is not Java thread, skip
+    // to make target thread's status 'suspended' ---- in (A) below
     dvmLockMutex(&lock_waiters_mutex);
     it = reverse_thd_map.find(sysTid);
     if (it == reverse_thd_map.end()) {
@@ -452,9 +452,8 @@ size_t dvmDdmGetStackTrace(pid_t sysTid, int** traceBuf, int suspended)
         return 0;
     }
     dvmUnlockMutex(&lock_waiters_mutex);
-
     if (suspended)
-        oldStatus = dvmChangeStatus(it->second, THREAD_VMWAIT);
+        oldStatus = dvmChangeStatus(it->second, THREAD_VMWAIT); // ---- (A)
     dvmLockThreadList(self);
 
     for (thread = gDvm.threadList; thread != NULL; thread = thread->next) {
