@@ -176,6 +176,7 @@ static void Dalvik_java_lang_VMClassLoader_loadClass(const u4* args,
     ClassObject* clazz;
 
     clazz = dvmFindClassByName(nameObj, NULL, resolve);
+    // loadClass!
     assert(clazz == NULL || dvmIsClassLinked(clazz));
     RETURN_PTR(clazz);
 }

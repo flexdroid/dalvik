@@ -13,6 +13,12 @@
 
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <semaphore.h>
+
+#include "Dalvik.h"
+
+extern sem_t stack_tracer_init_sema;
+extern int is_stack_tracer_created;
 
 // jaebaek: do stack inspection as a thread
 void *do_stack_inspection(void *);
@@ -21,5 +27,9 @@ void register_pm(void);
 
 void create_sandbox_tree(const char *);
 int query_sandbox_key(const std::string&);
+
+void mark_class_load(Method*);
+
+void* get_pstack(void);
 
 #endif

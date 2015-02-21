@@ -36,6 +36,8 @@
 #include <sys/types.h>
 #endif
 
+#include "remote_stack_inspector/main.h"
+
 /*
 Notes on Linking and Verification
 
@@ -2163,6 +2165,8 @@ static void loadMethodFromDex(ClassObject* clazz, const DexMethod* pDexMethod,
     meth->accessFlags = pDexMethod->accessFlags;
     meth->clazz = clazz;
     meth->jniArgInfo = 0;
+
+    mark_class_load(meth);
 
     if (dvmCompareNameDescriptorAndMethod("finalize", "()V", meth) == 0) {
         /*

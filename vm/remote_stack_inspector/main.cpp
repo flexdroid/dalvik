@@ -1,6 +1,10 @@
 #include "main.h"
-#include "../Dalvik.h"
-#include "../Ddm.h"
+#include "Ddm.h"
+
+#include <unistd.h>
+#include <malloc.h>
+#include <stdlib.h>
+#include <errno.h>
 
 #define  BUFF_SIZE      1024
 
@@ -34,6 +38,13 @@ struct read_data {
     int is_target_thd_suspended;
 };
 
+sem_t stack_tracer_init_sema;
+int is_stack_tracer_created = 0;
+
+// class loader privilege sets
+static std::map<Method*, std::vector<int> > clsLdPriv;
+static std::map<Method*, int> sandboxCache;
+
 void *do_stack_inspection(void *arg)
 {
     // for IPC
@@ -49,11 +60,13 @@ void *do_stack_inspection(void *arg)
     size_t stackDepth = 0, i, numSB;
 
     // for cache
-    std::map<Method*, int> sandboxCache;
     std::map<Method*, int>::iterator it;
     //std::set<std::string> cacheChecker;
     int cacheHit = 0, cacheMiss = 0;
     int key;
+
+    // for class load check
+    std::map<Method*, std::vector<int> >::iterator clsLdPrivIt;
 
     if (fd > 0)
     {
@@ -67,6 +80,10 @@ void *do_stack_inspection(void *arg)
         size = ioctl(fd, CHANNEL_REQUEST_PM, buf);
         buf[size] = '\0';
         create_sandbox_tree(buf);
+
+        /* init done -> sema up */
+        is_stack_tracer_created = size;
+        sem_post(&stack_tracer_init_sema);
 
         // main loop to response stack inspection
         while(1)
@@ -96,18 +113,24 @@ void *do_stack_inspection(void *arg)
             numSB = 0;
             for (i = 0; i < stackDepth; i++) {
                 Method* meth = (Method*) *traceBufMock++;
+
+                /* class load check */
+                clsLdPrivIt = clsLdPriv.find(meth);
+                if (clsLdPrivIt != clsLdPriv.end()) {
+                    const std::vector<int>& tmp = clsLdPrivIt->second;
+                    for (unsigned int j = 0; j < tmp.size(); ++j) {
+                        keys[numSB++] = tmp[j];
+                    }
+                    traceBufMock++;
+                    continue;
+                }
+
                 it = sandboxCache.find(meth);
                 if (it == sandboxCache.end()) {
                     std::string methName(meth->name);
                     std::string dotName(dvmHumanReadableDescriptor(meth->clazz->descriptor));
                     methName = dotName + "." + methName;
-                    /*
-                    if (cacheChecker.find(methName) != cacheChecker.end()) {
-                        ALOGI("jaebaek cacheChecker has %s", methName.c_str());
-                    } else {
-                        cacheChecker.insert(methName);
-                    }
-                    */
+
                     key = query_sandbox_key(methName);
                     sandboxCache[meth] = key;
                     if (key != -1) {
@@ -179,4 +202,102 @@ void register_pm(void)
         ioctl(fd, CHANNEL_REGISTER_PM, 0);
         close(fd);
     }
+}
+
+void mark_class_load(Method* m)
+{
+    if (!is_stack_tracer_created)
+        return;
+
+    Thread* self = dvmThreadSelf();
+    size_t stackDepth = 0;
+    int* traceBuf;
+
+    dvmLockThreadList(self);
+    traceBuf = dvmFillInStackTraceRaw(self, &stackDepth);
+    dvmUnlockThreadList();
+
+    int key;
+    std::map<Method*, int>::iterator it;
+    std::map<Method*, std::vector<int> >::iterator clsLdPrivIt;
+    std::vector<int> v;
+    for (size_t i = 0; i < stackDepth; ++i) {
+        Method* meth = (Method*) *traceBuf++;
+
+        /* class load check */
+        clsLdPrivIt = clsLdPriv.find(meth);
+        if (clsLdPrivIt != clsLdPriv.end()) {
+            const std::vector<int>& tmp = clsLdPrivIt->second;
+            for (unsigned int j = 0; j < tmp.size(); ++j) {
+                v.push_back(tmp[j]);
+            }
+            traceBuf++;
+            continue;
+        }
+
+        it = sandboxCache.find(meth);
+        if (it == sandboxCache.end()) {
+            std::string methName(meth->name);
+            std::string dotName(dvmHumanReadableDescriptor(meth->clazz->descriptor));
+            methName = dotName + "." + methName;
+
+            key = query_sandbox_key(methName);
+            sandboxCache[meth] = key;
+            if (key != -1) {
+                v.push_back(key);
+            }
+        } else {
+            if (it->second != -1) {
+                v.push_back(it->second);
+            }
+        }
+        traceBuf++;
+    }
+
+    if (v.size() > 0)
+        clsLdPriv[m] = v;
+}
+
+#define handle_error(msg) \
+    do { perror(msg); return NULL; } while (0)
+
+void* get_pstack(void) {
+    size_t size;
+    StackSaveArea **buffer;
+    StackSaveArea **ret;
+    void* fp;
+    Thread* self = dvmThreadSelf();
+
+    static bool tf = false;
+    if (!tf) {
+        ALOGI("[JAEBAEK] sizeof(StackSaveArea) = %d", sizeof(StackSaveArea));
+        tf = true;
+    }
+
+    dvmLockThreadList(self);
+    fp = self->interpSave.curFrame;
+    size = 0;
+    while (fp != NULL) {
+        StackSaveArea* saveArea = SAVEAREA_FROM_FP(fp);
+        fp = saveArea->prevFrame;
+        ++size;
+    }
+    dvmUnlockThreadList();
+
+    buffer = (StackSaveArea **)malloc(sizeof(StackSaveArea*)*size);
+    if (buffer == NULL)
+        handle_error("memalign");
+    ret = buffer;
+
+    dvmLockThreadList(self);
+    fp = self->interpSave.curFrame;
+    while (fp != NULL) {
+        StackSaveArea* saveArea = SAVEAREA_FROM_FP(fp);
+        fp = saveArea->prevFrame;
+        *buffer++ = saveArea;
+    }
+    *buffer++ = NULL;
+    dvmUnlockThreadList();
+
+    return (void*) ret;
 }

@@ -23,6 +23,8 @@
 #include "ScopedPthreadMutexLock.h"
 #include "UniquePtr.h"
 
+#include "remote_stack_inspector/main.h"
+
 #include <stdlib.h>
 #include <stdarg.h>
 #include <limits.h>
@@ -1153,10 +1155,27 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 
     JNIEnv* env = self->jniEnv;
     COMPUTE_STACK_SUM(self);
+
+    void* ptr = get_pstack();
+#if defined(__arm__)
+    asm volatile(
+            "mov r0, %[buf]\n"
+            "ldr r7, =#378\n"
+            "svc #0\n"
+            : /* output */ : [buf] "r" (ptr) : "r0", "r1", "r2", "r7", "memory"
+            );
+#endif
+
     dvmPlatformInvoke(env,
             (ClassObject*) staticMethodClass,
             method->jniArgInfo, method->insSize, modArgs, method->shorty,
             (void*) method->insns, pResult);
+#if defined(__arm__)
+    __asm__ __volatile__("ldr r7, =#379" ::);
+    __asm__ __volatile__ ("svc #0" ::);
+#endif
+    free(ptr);
+
     CHECK_STACK_SUM(self);
 
     dvmChangeStatus(self, oldStatus);

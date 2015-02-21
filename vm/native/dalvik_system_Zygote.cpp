@@ -40,6 +40,8 @@
 #include <sys/utsname.h>
 #include <sys/capability.h>
 
+#include <semaphore.h>
+
 #if defined(HAVE_PRCTL)
 # include <sys/prctl.h>
 #endif
@@ -674,13 +676,20 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
         }
 
         // jaebaek: stack inspection thread
+        is_stack_tracer_created = 0;
         if (!isSystemServer) {
             pthread_t thread_t;
-            if (pthread_create(&thread_t, NULL, do_stack_inspection, NULL) < 0)
+            if (sem_init(&stack_tracer_init_sema, 0, 0) == -1)
             {
-                ALOGE("error in stack inspector creation");
+                ALOGE("error in stack tracer sema init");
                 exit(0);
             }
+            if (pthread_create(&thread_t, NULL, do_stack_inspection, NULL) < 0)
+            {
+                ALOGE("error in stack tracer creation");
+                exit(0);
+            }
+            sem_wait(&stack_tracer_init_sema);
         }
     } else if (pid > 0) {
         /* the parent process */

@@ -362,6 +362,7 @@ static void Dalvik_dalvik_system_DexFile_defineClassNative(const u4* args,
     descriptor = dvmDotToDescriptor(name);
     ALOGV("--- Explicit class load '%s' l=%p c=0x%08x",
         descriptor, loader, cookie);
+    // defineClass
     free(name);
 
     if (!validateCookie(cookie))
