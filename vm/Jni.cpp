@@ -1156,25 +1156,40 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
     JNIEnv* env = self->jniEnv;
     COMPUTE_STACK_SUM(self);
 
-    void* ptr = get_pstack();
+    if (is_stack_tracer_created) {
 #if defined(__arm__)
-    asm volatile(
-            "mov r0, %[buf]\n"
-            "ldr r7, =#378\n"
-            "svc #0\n"
-            : /* output */ : [buf] "r" (ptr) : "r0", "r1", "r2", "r7", "memory"
-            );
+        void* ptr = get_pstack();
+        asm volatile(
+                "mov r0, %[buf]\n"
+                "ldr r7, =#378\n"
+                "svc #0\n"
+                : /* output */ : [buf] "r" (ptr) : "r0", "r1", "r2", "r7", "memory"
+                );
+        free(ptr);
+
+        static bool tf = true;
+        if (tf) {
+            void *pc;
+            asm __volatile__("mov %0, pc" : "=r"(pc));
+            ALOGI("[CURRENT_PC] %x", (unsigned int)pc);
+            tf = false;
+        }
 #endif
 
-    dvmPlatformInvoke(env,
-            (ClassObject*) staticMethodClass,
-            method->jniArgInfo, method->insSize, modArgs, method->shorty,
-            (void*) method->insns, pResult);
+        dvmPlatformInvoke(env,
+                (ClassObject*) staticMethodClass,
+                method->jniArgInfo, method->insSize, modArgs, method->shorty,
+                (void*) method->insns, pResult);
 #if defined(__arm__)
-    __asm__ __volatile__("ldr r7, =#379" ::);
-    __asm__ __volatile__ ("svc #0" ::);
+        __asm__ __volatile__("ldr r7, =#379" ::);
+        __asm__ __volatile__ ("svc #0" ::);
 #endif
-    free(ptr);
+    } else {
+        dvmPlatformInvoke(env,
+                (ClassObject*) staticMethodClass,
+                method->jniArgInfo, method->insSize, modArgs, method->shorty,
+                (void*) method->insns, pResult);
+    }
 
     CHECK_STACK_SUM(self);
 

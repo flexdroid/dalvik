@@ -259,7 +259,7 @@ void mark_class_load(Method* m)
 }
 
 #define handle_error(msg) \
-    do { perror(msg); return NULL; } while (0)
+    do { ALOGI(msg); return NULL; } while (0)
 
 void* get_pstack(void) {
     size_t size;
@@ -267,12 +267,6 @@ void* get_pstack(void) {
     StackSaveArea **ret;
     void* fp;
     Thread* self = dvmThreadSelf();
-
-    static bool tf = false;
-    if (!tf) {
-        ALOGI("[JAEBAEK] sizeof(StackSaveArea) = %d", sizeof(StackSaveArea));
-        tf = true;
-    }
 
     dvmLockThreadList(self);
     fp = self->interpSave.curFrame;
@@ -282,6 +276,7 @@ void* get_pstack(void) {
         fp = saveArea->prevFrame;
         ++size;
     }
+    ++size;
     dvmUnlockThreadList();
 
     buffer = (StackSaveArea **)malloc(sizeof(StackSaveArea*)*size);
@@ -296,7 +291,7 @@ void* get_pstack(void) {
         fp = saveArea->prevFrame;
         *buffer++ = saveArea;
     }
-    *buffer++ = NULL;
+    *buffer = NULL;
     dvmUnlockThreadList();
 
     return (void*) ret;
