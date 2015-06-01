@@ -29,6 +29,8 @@
 #include <stdarg.h>
 #include <limits.h>
 
+#include <sys/mman.h>
+
 /*
 Native methods and interaction with the GC
 
@@ -1156,40 +1158,172 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
     JNIEnv* env = self->jniEnv;
     COMPUTE_STACK_SUM(self);
 
-    if (is_stack_tracer_created) {
 #if defined(__arm__)
-        void* ptr = get_pstack();
-        asm volatile(
-                "mov r0, %[buf]\n"
-                "ldr r7, =#378\n"
-                "svc #0\n"
-                : /* output */ : [buf] "r" (ptr) : "r0", "r1", "r2", "r7", "memory"
-                );
-        free(ptr);
+    if (method->sandbox) {
+        /* copy argments to the sandbox */
+        void** argv = (void**)((unsigned long)method->sandbox + 14*(1<<12));
+        unsigned long ptr = (unsigned long)method->sandbox + 14*(1<<12) + 9*sizeof(void*);
 
-        static bool tf = true;
-        if (tf) {
-            void *pc;
-            asm __volatile__("mov %0, pc" : "=r"(pc));
-            ALOGI("[CURRENT_PC] %x", (unsigned int)pc);
-            tf = false;
+        JNIEnv* env_ = (JNIEnv*)ptr;
+        if (env) {
+            memcpy(env_, env, sizeof(*env));
+            ptr += sizeof(*env);
+            if (ptr % sizeof(int)) {
+                ptr += sizeof(int);
+                ptr &= 0xfffffffc;
+            }
+        } else {
+            env_ = NULL;
         }
-#endif
+        argv[0] = (void*)env_;
 
-        dvmPlatformInvoke(env,
-                (ClassObject*) staticMethodClass,
-                method->jniArgInfo, method->insSize, modArgs, method->shorty,
-                (void*) method->insns, pResult);
-#if defined(__arm__)
-        __asm__ __volatile__("ldr r7, =#379" ::);
-        __asm__ __volatile__ ("svc #0" ::);
-#endif
+        ClassObject* co = (ClassObject*)ptr;
+        if (staticMethodClass) {
+            memcpy(co, staticMethodClass, sizeof(*staticMethodClass));
+            ptr += sizeof(*staticMethodClass);
+            if (ptr % sizeof(int)) {
+                ptr += sizeof(int);
+                ptr &= 0xfffffffc;
+            }
+        } else {
+            co = NULL;
+        }
+        argv[1] = (void*)co;
+
+        int* jniArgInfo_ = (int*)ptr;
+        *jniArgInfo_ = method->jniArgInfo;
+        ptr += sizeof(int);
+        if (ptr % sizeof(int)) {
+            ptr += sizeof(int);
+            ptr &= 0xfffffffc;
+        }
+        argv[2] = (void*)jniArgInfo_;
+
+        u2* insSize_ = (u2*)ptr;
+        *insSize_ = method->insSize;
+        ptr += sizeof(u2);
+        if (ptr % sizeof(int)) {
+            ptr += sizeof(int);
+            ptr &= 0xfffffffc;
+        }
+        argv[3] = (void*)insSize_;
+
+        u4* modArgs_ = (u4*)ptr;
+        for (int i = 0; i < idx; ++i) {
+            modArgs_[i] = modArgs[i];
+        }
+        ptr += (unsigned long)idx * sizeof(u4);
+        if (ptr % sizeof(int)) {
+            ptr += sizeof(int);
+            ptr &= 0xfffffffc;
+        }
+        argv[4] = (void*)modArgs_;
+
+        size_t shorty_len = strlen(method->shorty);
+        char* shorty_ = (char*)ptr;
+        strncpy(shorty_, method->shorty, shorty_len);
+        shorty_[shorty_len] = '\0';
+        ptr += (unsigned long)(shorty_len + 1) * sizeof(char);
+        if (ptr % sizeof(int)) {
+            ptr += sizeof(int);
+            ptr &= 0xfffffffc;
+        }
+        argv[5] = (void*)shorty_;
+
+        void** insns_ = (void**)ptr;
+        *insns_ = (void*) method->insns;
+        ptr += sizeof(void*);
+        if (ptr % sizeof(int)) {
+            ptr += sizeof(int);
+            ptr &= 0xfffffffc;
+        }
+        argv[6] = (void*)insns_;
+
+        JValue* pResult_ = (JValue*)ptr;
+        if (pResult)
+            memcpy(pResult_, pResult, sizeof(*pResult));
+        else
+            pResult_ = NULL;
+        argv[7] = (void*)pResult_;
+        argv[8] = (void*)pResult;
+        /*
+           void* ptr = get_pstack();
+           asm volatile(
+           "mov r0, %[buf]\n"
+           "ldr r7, =#378\n"
+           "svc #0\n"
+           : : [buf] "r" (ptr) : "r0", "r1", "r2", "r7", "memory");
+           free(ptr);
+
+           static bool tf = true;
+           if (tf) {
+           void *pc;
+           asm __volatile__("mov %0, pc" : "=r"(pc));
+           ALOGI("[CURRENT_PC] %x", (unsigned int)pc);
+           tf = false;
+           }
+           */
+
+        /* change stack pointer */
+        unsigned long sp;
+        asm volatile(
+                "mov %[old_sp], sp\n"
+                "mov sp, %[new_sp]\n"
+                : [old_sp] "=r" (sp)
+                : [new_sp] "r" ((unsigned long)method->sandbox + 128*(1<<12)));
+
+        void** argv_ = (void**)((unsigned long)method->sandbox + 14*(1<<12));
+
+        unsigned int domain = 0;
+        asm volatile(
+                "mov r0, %[ptr]\n"
+                "ldr r7, =0x17a\n"
+                "svc #0\n"
+                "mov %[result], r0\n"
+                : [result] "=r" (domain)
+                : [ptr] "r" (method->sandbox)
+                : "r0", "r7", "memory");
+
+        /* dvmPlatformInvoke in the sandbox */
+        void (*dvmPlatformInvoke_wrapper)
+            (void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*)
+            = (void (*)(void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*))
+            ((unsigned long)method->sandbox + 15*(1<<12));
+
+        dvmPlatformInvoke_wrapper((JNIEnv*)argv_[0], (ClassObject*)argv_[1],
+                *(int*)argv_[2], *(u2*)argv_[3], (u4*)argv_[4],
+                (const char*)argv_[5], *(void**)argv_[6], (JValue*)argv_[7]);
+        /*
+           __asm__ __volatile__("ldr r7, =#379" ::);
+           __asm__ __volatile__ ("svc #0" ::);
+           */
+        asm volatile(
+                "mov r1, %[dom]\n"
+                "mov r0, %[ptr]\n"
+                "ldr r7, =0x17b\n"
+                "svc #0\n"
+                : : [ptr] "r" (method->sandbox),
+                [dom] "r" (domain)
+                : "r0", "r7", "memory");
+
+        if (argv_[7])
+            memcpy(argv[8], argv_[7], sizeof(pResult_));
+
+        asm volatile(
+                "mov sp, %[old_sp]\n"
+                : : [old_sp] "r" (sp));
     } else {
         dvmPlatformInvoke(env,
                 (ClassObject*) staticMethodClass,
                 method->jniArgInfo, method->insSize, modArgs, method->shorty,
                 (void*) method->insns, pResult);
     }
+#else
+    dvmPlatformInvoke(env,
+            (ClassObject*) staticMethodClass,
+            method->jniArgInfo, method->insSize, modArgs, method->shorty,
+            (void*) method->insns, pResult);
+#endif
 
     CHECK_STACK_SUM(self);
 

@@ -39,7 +39,7 @@ struct read_data {
 };
 
 sem_t stack_tracer_init_sema;
-int is_stack_tracer_created = 0;
+static int is_stack_tracer_created = 0;
 
 // class loader privilege sets
 static std::map<Method*, std::vector<int> > clsLdPriv;

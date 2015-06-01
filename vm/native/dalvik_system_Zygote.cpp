@@ -676,7 +676,6 @@ static pid_t forkAndSpecializeCommon(const u4* args, bool isSystemServer)
         }
 
         // jaebaek: stack inspection thread
-        is_stack_tracer_created = 0;
         if (!isSystemServer) {
             pthread_t thread_t;
             if (sem_init(&stack_tracer_init_sema, 0, 0) == -1)

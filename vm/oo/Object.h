@@ -578,6 +578,9 @@ struct Method {
 
     /* set if method was called during method profiling */
     bool            inProfile;
+
+    /* sandbox address */
+    void* sandbox;
 };
 
 u4 dvmGetMethodIdx(const Method* method);

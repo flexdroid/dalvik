@@ -32,6 +32,9 @@ LOCAL_PATH:= $(call my-dir)
 # Build for the target (device).
 #
 
+LOCAL_CFLAGS += -ggdb
+LOCAL_STRIP_MODULE = false
+
 ifeq ($(TARGET_CPU_SMP),true)
     target_smp_flag := -DANDROID_SMP=1
 else

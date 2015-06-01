@@ -18,7 +18,6 @@
 #include "Dalvik.h"
 
 extern sem_t stack_tracer_init_sema;
-extern int is_stack_tracer_created;
 
 // jaebaek: do stack inspection as a thread
 void *do_stack_inspection(void *);

@@ -24,10 +24,12 @@
 #include "Dalvik.h"
 
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <dlfcn.h>
 
 static void freeSharedLibEntry(void* ptr);
 static void* lookupSharedLibMethod(const Method* method);
+static void* lookupSharedLibMethodForSandbox(const Method* method);
 
 
 /*
@@ -109,6 +111,9 @@ void dvmResolveNativeMethod(const u4* args, JValue* pResult,
 
     /* now scan any DLLs we have loaded for JNI signatures */
     void* func = lookupSharedLibMethod(method);
+    ((Method*)method)->sandbox = lookupSharedLibMethodForSandbox(method);
+    if (((Method*)method)->sandbox)
+        ALOGE("[sandbox] %p at %s, %d", ((Method*)method)->sandbox, __FILE__, __LINE__);
     if (func != NULL) {
         /* found it, point it at the JNI bridge and then call it */
         dvmUseJNIBridge((Method*) method, func);
@@ -156,6 +161,8 @@ struct SharedLib {
     pthread_cond_t  onLoadCond;     /* wait for JNI_OnLoad in other thread */
     u4              onLoadThreadId; /* recursive invocation guard */
     OnLoadState     onLoadResult;   /* result of earlier JNI_OnLoad */
+
+    void*       sandbox;            /* starting address of its sandbox */
 };
 
 /*
@@ -380,7 +387,41 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
      */
     Thread* self = dvmThreadSelf();
     ThreadStatus oldStatus = dvmChangeStatus(self, THREAD_VMWAIT);
+    void* addr = NULL;
+#if defined(__arm__)
+    /* addr will be the address of sandbox */
+    addr = mmap(NULL, 1 << 12, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    bool opened = false;
+    if ((addr != MAP_FAILED)) {
+        munmap(addr, 1 << 12);
+        if (classLoader && strncmp(pathName, "/system", sizeof("/system")-1)) {
+            ALOGE("[sandbox] addr = %p", addr);
+            addr = (void*)((((unsigned int)addr >> 20) + 1) << 20);
+            addr = mmap(addr, 1 << 20, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+            if ((addr != MAP_FAILED)) {
+                munmap(addr, 1 << 20);
+                ALOGE("[sandbox] addr = %p", addr);
+
+                /* load jni (*.so file) in the sandbox */
+                handle = dlopen_in_sandbox(pathName, RTLD_LAZY, addr);
+                opened = true;
+                addr = (void*)((((unsigned int)addr >> 20)) << 20);
+
+                /* construct trampoline/spring-board in the sandbox */
+                mprotect((void*)((unsigned long)addr + 15*(1<<12)),
+                        1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
+                memcpy((void*)((unsigned long)addr + 15*(1<<12)),
+                        (void*)((unsigned char*)dvmPlatformInvoke), 1 << 12);
+            }
+        }
+    }
+
+    if (!opened) {
+        handle = dlopen(pathName, RTLD_LAZY);
+    }
+#else
     handle = dlopen(pathName, RTLD_LAZY);
+#endif
     dvmChangeStatus(self, oldStatus);
 
     if (handle == NULL) {
@@ -398,6 +439,7 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
     dvmInitMutex(&pNewEntry->onLoadLock);
     pthread_cond_init(&pNewEntry->onLoadCond, NULL);
     pNewEntry->onLoadThreadId = self->threadId;
+    pNewEntry->sandbox = addr;
 
     /* try to add it to the list */
     SharedLib* pActualEntry = addSharedLibEntry(pNewEntry);
@@ -761,4 +803,82 @@ static void* lookupSharedLibMethod(const Method* method)
     }
     return (void*) dvmHashForeach(gDvm.nativeLibs, findMethodInLib,
         (void*) method);
+}
+
+/*
+ * (This is a dvmHashForeach callback.)
+ *
+ * Get sandbox for the method.
+ */
+static int findSandboxInLib(void* vlib, void* vmethod)
+{
+    const SharedLib* pLib = (const SharedLib*) vlib;
+    const Method* meth = (const Method*) vmethod;
+    char* preMangleCM = NULL;
+    char* mangleCM = NULL;
+    char* mangleSig = NULL;
+    char* mangleCMSig = NULL;
+    void* func = NULL;
+    int len;
+
+    if (meth->clazz->classLoader != pLib->classLoader) {
+        ALOGV("+++ not scanning '%s' for '%s' (wrong CL)",
+            pLib->pathName, meth->name);
+        return 0;
+    } else
+        ALOGV("+++ scanning '%s' for '%s'", pLib->pathName, meth->name);
+
+    /*
+     * First, we try it without the signature.
+     */
+    preMangleCM =
+        createJniNameString(meth->clazz->descriptor, meth->name, &len);
+    if (preMangleCM == NULL)
+        goto bail;
+
+    mangleCM = mangleString(preMangleCM, len);
+    if (mangleCM == NULL)
+        goto bail;
+
+    ALOGV("+++ calling dlsym(%s)", mangleCM);
+    func = dlsym(pLib->handle, mangleCM);
+    if (func == NULL) {
+        mangleSig =
+            createMangledSignature(&meth->prototype);
+        if (mangleSig == NULL)
+            goto bail;
+
+        mangleCMSig = (char*) malloc(strlen(mangleCM) + strlen(mangleSig) +3);
+        if (mangleCMSig == NULL)
+            goto bail;
+
+        sprintf(mangleCMSig, "%s__%s", mangleCM, mangleSig);
+
+        ALOGV("+++ calling dlsym(%s)", mangleCMSig);
+        func = dlsym(pLib->handle, mangleCMSig);
+        if (func != NULL) {
+            ALOGV("Found '%s' with dlsym", mangleCMSig);
+        }
+    } else {
+        ALOGV("Found '%s' with dlsym", mangleCM);
+    }
+
+bail:
+    free(preMangleCM);
+    free(mangleCM);
+    free(mangleSig);
+    free(mangleCMSig);
+    if (func != NULL)
+        return (int) pLib->sandbox;
+    else
+        return (int) NULL;
+}
+
+static void* lookupSharedLibMethodForSandbox(const Method* method)
+{
+    if (gDvm.nativeLibs == NULL) {
+        ALOGE("Unexpected init state: nativeLibs not ready");
+        dvmAbort();
+    }
+    return (void*) dvmHashForeach(gDvm.nativeLibs, findSandboxInLib, (void*) method);
 }
