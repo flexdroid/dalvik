@@ -1272,46 +1272,23 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 : [old_sp] "=r" (sp)
                 : [new_sp] "r" ((unsigned long)method->sandbox + 128*(1<<12)));
 
-        void** argv_ = (void**)((unsigned long)method->sandbox + 14*(1<<12));
-
-        unsigned int domain = 0;
         asm volatile(
                 "mov r0, %[ptr]\n"
                 "ldr r7, =0x17a\n"
                 "svc #0\n"
-                "mov %[result], r0\n"
-                : [result] "=r" (domain)
-                : [ptr] "r" (method->sandbox)
+                : : [ptr] "r" (method->sandbox)
                 : "r0", "r7", "memory");
-
-        /* dvmPlatformInvoke in the sandbox */
-        void (*dvmPlatformInvoke_wrapper)
-            (void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*)
-            = (void (*)(void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*))
-            ((unsigned long)method->sandbox + 15*(1<<12));
-
-        dvmPlatformInvoke_wrapper((JNIEnv*)argv_[0], (ClassObject*)argv_[1],
-                *(int*)argv_[2], *(u2*)argv_[3], (u4*)argv_[4],
-                (const char*)argv_[5], *(void**)argv_[6], (JValue*)argv_[7]);
         /*
            __asm__ __volatile__("ldr r7, =#379" ::);
            __asm__ __volatile__ ("svc #0" ::);
            */
         asm volatile(
-                "mov r1, %[dom]\n"
-                "mov r0, %[ptr]\n"
-                "ldr r7, =0x17b\n"
-                "svc #0\n"
-                : : [ptr] "r" (method->sandbox),
-                [dom] "r" (domain)
-                : "r0", "r7", "memory");
-
-        if (argv_[7])
-            memcpy(argv[8], argv_[7], sizeof(pResult_));
-
-        asm volatile(
                 "mov sp, %[old_sp]\n"
                 : : [old_sp] "r" (sp));
+
+        void** argv_ = (void**)((unsigned long)method->sandbox + 14*(1<<12));
+        if (argv_[7])
+            memcpy(argv[8], argv_[7], sizeof(pResult_));
     } else {
         dvmPlatformInvoke(env,
                 (ClassObject*) staticMethodClass,

@@ -306,6 +306,28 @@ static bool checkOnLoadResult(SharedLib* pEntry)
 typedef int (*OnLoadFunc)(JavaVM*, void*);
 
 /*
+ * Wrapper function of dvmPlatformInvoke
+ * This must be copied into JNI jail
+ */
+static void dvmPlatformInvoke_wrapper(unsigned long sandbox)
+{
+    void** argv_ = (void**)(sandbox + 14*(1<<12));
+    void (*jump_to_jni)
+        (void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*)
+        = (void (*)(void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*))
+        (sandbox + 15*(1<<12));
+
+    jump_to_jni((JNIEnv*)argv_[0], (ClassObject*)argv_[1],
+            *(int*)argv_[2], *(u2*)argv_[3], (u4*)argv_[4],
+            (const char*)argv_[5], *(void**)argv_[6], (JValue*)argv_[7]);
+
+    asm volatile(
+            "ldr r7, =0x17b\n"
+            "svc #0\n"
+            : : );
+}
+
+/*
  * Load native code from the specified absolute pathname.  Per the spec,
  * if we've already loaded a library with the specified pathname, we
  * return without doing anything.
@@ -412,6 +434,8 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
                         1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
                 memcpy((void*)((unsigned long)addr + 15*(1<<12)),
                         (void*)((unsigned char*)dvmPlatformInvoke), 1 << 12);
+                memcpy((void*)((unsigned long)addr + 15*(1<<12) + (1<<11)),
+                        (void*)((unsigned char*)dvmPlatformInvoke_wrapper-1), 1 << 11);
             }
         }
     }
