@@ -1161,6 +1161,8 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 #if defined(__arm__)
     if (method->sandbox) {
         /* copy argments to the sandbox */
+        mprotect((void*)((unsigned long)method->sandbox + 14*(1<<12)),
+                1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
         void** argv = (void**)((unsigned long)method->sandbox + 14*(1<<12));
         unsigned long ptr = (unsigned long)method->sandbox + 14*(1<<12) + 9*sizeof(void*);
 

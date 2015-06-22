@@ -418,7 +418,14 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
         munmap(addr, 1 << 12);
         if (classLoader && strncmp(pathName, "/system", sizeof("/system")-1)) {
             ALOGE("[sandbox] addr = %p", addr);
-            addr = (void*)((((unsigned int)addr >> 20) + 1) << 20);
+            while ((unsigned int)addr % (1 << 20)) {
+                addr = (void*)((((unsigned int)addr >> 20) + 1) << 20);
+                addr = mmap(addr, 1 << 20, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+                if ((addr != MAP_FAILED)) {
+                    munmap(addr, 1 << 20);
+                }
+            }
+            // addr = (void*)((((unsigned int)addr >> 20) + 1) << 20);
             addr = mmap(addr, 1 << 20, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
             if ((addr != MAP_FAILED)) {
                 munmap(addr, 1 << 20);
