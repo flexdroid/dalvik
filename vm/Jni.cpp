@@ -1161,10 +1161,10 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 #if defined(__arm__)
     if (method->sandbox) {
         /* copy argments to the sandbox */
-        mprotect((void*)((unsigned long)method->sandbox + 14*(1<<12)),
+        mprotect((void*)((unsigned long)method->sandbox + (1<<12)),
                 1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
-        void** argv = (void**)((unsigned long)method->sandbox + 14*(1<<12));
-        unsigned long ptr = (unsigned long)method->sandbox + 14*(1<<12) + 9*sizeof(void*);
+        void** argv = (void**)((unsigned long)method->sandbox + (1<<12));
+        unsigned long ptr = (unsigned long)argv + 9*sizeof(void*);
 
         JNIEnv* env_ = (JNIEnv*)ptr;
         if (env) {
@@ -1248,31 +1248,6 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
             pResult_ = NULL;
         argv[7] = (void*)pResult_;
         argv[8] = (void*)pResult;
-        /*
-           void* ptr = get_pstack();
-           asm volatile(
-           "mov r0, %[buf]\n"
-           "ldr r7, =#378\n"
-           "svc #0\n"
-           : : [buf] "r" (ptr) : "r0", "r1", "r2", "r7", "memory");
-           free(ptr);
-
-           static bool tf = true;
-           if (tf) {
-           void *pc;
-           asm __volatile__("mov %0, pc" : "=r"(pc));
-           ALOGI("[CURRENT_PC] %x", (unsigned int)pc);
-           tf = false;
-           }
-           */
-
-        /* change stack pointer */
-        unsigned long sp;
-        asm volatile(
-                "mov %[old_sp], sp\n"
-                "mov sp, %[new_sp]\n"
-                : [old_sp] "=r" (sp)
-                : [new_sp] "r" ((unsigned long)method->sandbox + 128*(1<<12)));
 
         asm volatile(
                 "mov r0, %[ptr]\n"
@@ -1280,15 +1255,8 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 "svc #0\n"
                 : : [ptr] "r" (method->sandbox)
                 : "r0", "r7", "memory");
-        /*
-           __asm__ __volatile__("ldr r7, =#379" ::);
-           __asm__ __volatile__ ("svc #0" ::);
-           */
-        asm volatile(
-                "mov sp, %[old_sp]\n"
-                : : [old_sp] "r" (sp));
 
-        void** argv_ = (void**)((unsigned long)method->sandbox + 14*(1<<12));
+        void** argv_ = (void**)((unsigned long)method->sandbox + (1<<12));
         if (argv_[7])
             memcpy(argv[8], argv_[7], sizeof(pResult_));
     } else {

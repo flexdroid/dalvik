@@ -311,11 +311,11 @@ typedef int (*OnLoadFunc)(JavaVM*, void*);
  */
 static void dvmPlatformInvoke_wrapper(unsigned long sandbox)
 {
-    void** argv_ = (void**)(sandbox + 14*(1<<12));
+    void** argv_ = (void**)(sandbox + (1<<12));
     void (*jump_to_jni)
         (void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*)
         = (void (*)(void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*))
-        (sandbox + 15*(1<<12));
+        sandbox;
 
     jump_to_jni((JNIEnv*)argv_[0], (ClassObject*)argv_[1],
             *(int*)argv_[2], *(u2*)argv_[3], (u4*)argv_[4],
@@ -412,39 +412,18 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
     void* addr = NULL;
 #if defined(__arm__)
     /* addr will be the address of sandbox */
-    addr = mmap(NULL, 1 << 12, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     bool opened = false;
-    if ((addr != MAP_FAILED)) {
-        munmap(addr, 1 << 12);
-        if (classLoader && strncmp(pathName, "/system", sizeof("/system")-1)) {
-            ALOGE("[sandbox] addr = %p", addr);
-            while ((unsigned int)addr % (1 << 20)) {
-                addr = (void*)((((unsigned int)addr >> 20) + 1) << 20);
-                addr = mmap(addr, 1 << 20, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-                if ((addr != MAP_FAILED)) {
-                    munmap(addr, 1 << 20);
-                }
-            }
-            // addr = (void*)((((unsigned int)addr >> 20) + 1) << 20);
-            addr = mmap(addr, 1 << 20, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-            if ((addr != MAP_FAILED)) {
-                munmap(addr, 1 << 20);
-                ALOGE("[sandbox] addr = %p", addr);
+    if (classLoader && strncmp(pathName, "/system", sizeof("/system")-1)) {
+        /* load jni (*.so file) in the sandbox */
+        handle = dlopen_in_sandbox(pathName, RTLD_LAZY, &addr);
+        ALOGE("[sandbox] addr = %p", addr);
+        opened = true;
 
-                /* load jni (*.so file) in the sandbox */
-                handle = dlopen_in_sandbox(pathName, RTLD_LAZY, addr);
-                opened = true;
-                addr = (void*)((((unsigned int)addr >> 20)) << 20);
-
-                /* construct trampoline/spring-board in the sandbox */
-                mprotect((void*)((unsigned long)addr + 15*(1<<12)),
-                        1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
-                memcpy((void*)((unsigned long)addr + 15*(1<<12)),
-                        (void*)((unsigned char*)dvmPlatformInvoke), 1 << 12);
-                memcpy((void*)((unsigned long)addr + 15*(1<<12) + (1<<11)),
-                        (void*)((unsigned char*)dvmPlatformInvoke_wrapper-1), 1 << 11);
-            }
-        }
+        /* construct trampoline/spring-board in the sandbox */
+        mprotect(addr, 1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
+        memcpy(addr, (void*)((unsigned char*)dvmPlatformInvoke), 1 << 12);
+        memcpy((void*)((unsigned long)addr + (1<<11)),
+                (void*)((unsigned char*)dvmPlatformInvoke_wrapper-1), 1 << 11);
     }
 
     if (!opened) {
