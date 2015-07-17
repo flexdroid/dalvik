@@ -168,4 +168,6 @@ void dvmDumpJniReferenceTables(void);
 struct DebugOutputTarget;
 void dvmDumpJniStats(DebugOutputTarget* target);
 
+struct JNINativeInterface* dvmGetSandboxedFuncTable(void);
+
 #endif  // DALVIK_JNIINTERNAL_H_

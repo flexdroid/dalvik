@@ -1092,6 +1092,54 @@ static inline void convertReferenceResult(JNIEnv* env, JValue* pResult,
     }
 }
 
+#if defined(__arm__)
+#define SECTION_SIZE (1<<20)
+#define STACK_SIZE (4*SECTION_SIZE)
+#define NUM_STACK 32
+#define MODULAR(ptr, size) ((unsigned long)(ptr) % size)
+#define ROUND_UP(ptr, size) \
+    (MODULAR(ptr, size) ? \
+     (unsigned long)(ptr) - MODULAR(ptr, size) + size : (unsigned long)(ptr))
+static pthread_mutex_t ut_stack_lock = PTHREAD_MUTEX_INITIALIZER;
+static void* ut_stack_base = NULL;
+static bool ut_stack_used[NUM_STACK] = {0};
+static void* alloc_stack(void) {
+    ScopedPthreadMutexLock lock(&ut_stack_lock);
+    unsigned long i;
+    if (!ut_stack_base) {
+        void* base = mmap(NULL, NUM_STACK*STACK_SIZE,
+                PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+        if (base == MAP_FAILED)
+            ALOGE("[sandbox] stack mmap fail!!");
+        ut_stack_base = (void*)ROUND_UP(base, SECTION_SIZE);
+        if (base < ut_stack_base)
+            munmap(base, (unsigned long)ut_stack_base - (unsigned long)base);
+        for (i = 0; i < 127; ++i) {
+            *(int *)((unsigned long)ut_stack_base + i*SECTION_SIZE) = 3;
+        }
+        for (i = 0; i < NUM_STACK; ++i) {
+            ut_stack_used[i] = false;
+        }
+        asm volatile(
+                "push {r0, r7}\n"
+                "mov r0, %[base]\n"
+                "ldr r7, =0x17e\n"
+                "svc #0\n"
+                "pop {r0, r7}\n"
+                : : [base] "r" (ut_stack_base));
+    }
+    for (i = 0; i < NUM_STACK && ut_stack_used[i]; ++i) ;
+    ut_stack_used[i] = true;
+    return (void *)((unsigned long)ut_stack_base + i*STACK_SIZE);
+}
+
+static void free_stack(void* ptr) {
+    ScopedPthreadMutexLock lock(&ut_stack_lock);
+    unsigned long i = ((unsigned long)ptr - (unsigned long)ut_stack_base)/STACK_SIZE;
+    ut_stack_used[i] = false;
+}
+#endif
+
 /*
  * General form, handles all cases.
  */
@@ -1161,9 +1209,8 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 #if defined(__arm__)
     if (method->sandbox) {
         /* copy argments to the sandbox */
-        mprotect((void*)((unsigned long)method->sandbox + (1<<12)),
-                1 << 12, PROT_READ|PROT_WRITE|PROT_EXEC);
-        void** argv = (void**)((unsigned long)method->sandbox + (1<<12));
+        void* stack = alloc_stack();
+        void** argv = (void**)stack;
         unsigned long ptr = (unsigned long)argv + 9*sizeof(void*);
 
         JNIEnv* env_ = (JNIEnv*)ptr;
@@ -1250,15 +1297,18 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
         argv[8] = (void*)pResult;
 
         asm volatile(
+                "push {r0, r1, r7}\n"
+                "mov r1, %[new_sp]\n"
                 "mov r0, %[ptr]\n"
                 "ldr r7, =0x17a\n"
                 "svc #0\n"
-                : : [ptr] "r" (method->sandbox)
+                "pop {r0, r1, r7}\n"
+                : : [ptr] "r" (method->sandbox), [new_sp] "r" (stack)
                 : "r0", "r7", "memory");
-
-        void** argv_ = (void**)((unsigned long)method->sandbox + (1<<12));
+        void** argv_ = (void**)stack;
         if (argv_[7])
             memcpy(argv[8], argv_[7], sizeof(pResult_));
+        free_stack(stack);
     } else {
         dvmPlatformInvoke(env,
                 (ClassObject*) staticMethodClass,

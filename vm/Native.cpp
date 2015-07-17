@@ -234,6 +234,8 @@ static SharedLib* addSharedLibEntry(SharedLib* pLib)
 static void freeSharedLibEntry(void* ptr)
 {
     SharedLib* pLib = (SharedLib*) ptr;
+    if (pLib->sandbox)
+        ALOGE("[sandbox] freeSharedLibEntry pLib->sandbox=%p !!", pLib->sandbox);
 
     /*
      * Calling dlclose() here is somewhat dangerous, because it's possible
@@ -309,9 +311,9 @@ typedef int (*OnLoadFunc)(JavaVM*, void*);
  * Wrapper function of dvmPlatformInvoke
  * This must be copied into JNI jail
  */
-static void dvmPlatformInvoke_wrapper(unsigned long sandbox)
+static void dvmPlatformInvoke_wrapper(unsigned long sandbox, unsigned long stack)
 {
-    void** argv_ = (void**)(sandbox + (1<<12));
+    void** argv_ = (void**)stack;
     void (*jump_to_jni)
         (void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*)
         = (void (*)(void*, ClassObject*, int, int, const u4*, const char*, void*, JValue*))
