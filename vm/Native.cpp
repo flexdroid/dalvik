@@ -307,6 +307,7 @@ static bool checkOnLoadResult(SharedLib* pEntry)
 
 typedef int (*OnLoadFunc)(JavaVM*, void*);
 
+#if defined(__arm__)
 /*
  * Wrapper function of dvmPlatformInvoke
  * This must be copied into JNI jail
@@ -320,14 +321,15 @@ static void dvmPlatformInvoke_wrapper(unsigned long sandbox, unsigned long stack
         sandbox;
 
     jump_to_jni((JNIEnv*)argv_[0], (ClassObject*)argv_[1],
-            *(int*)argv_[2], *(u2*)argv_[3], (u4*)argv_[4],
-            (const char*)argv_[5], *(void**)argv_[6], (JValue*)argv_[7]);
+            (int)argv_[2], *(u2*)argv_[3], (u4*)argv_[4],
+            (const char*)argv_[5], argv_[6], (JValue*)argv_[7]);
 
     asm volatile(
             "ldr r7, =0x17b\n"
             "svc #0\n"
             : : );
 }
+#endif
 
 /*
  * Load native code from the specified absolute pathname.  Per the spec,

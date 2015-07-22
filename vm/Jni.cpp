@@ -1216,51 +1216,52 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 
         JNIEnv* env_ = dvmGetUntrustedEnv();
         argv[0] = (void*)env_;
-
-        ClassObject* co = (ClassObject*)ptr;
-        if (staticMethodClass) {
-            memcpy(co, staticMethodClass, sizeof(*staticMethodClass));
-            ptr += sizeof(*staticMethodClass);
-            if (ptr % sizeof(int)) {
-                ptr += sizeof(int);
-                ptr &= 0xfffffffc;
-            }
-        } else {
-            co = NULL;
-        }
-        argv[1] = (void*)co;
-
-        int* jniArgInfo_ = (int*)ptr;
-        *jniArgInfo_ = method->jniArgInfo;
-        ptr += sizeof(int);
-        if (ptr % sizeof(int)) {
-            ptr += sizeof(int);
-            ptr &= 0xfffffffc;
-        }
-        argv[2] = (void*)jniArgInfo_;
+        argv[1] = (void*)staticMethodClass;
+        argv[2] = (void*)method->jniArgInfo;
 
         u2* insSize_ = (u2*)ptr;
         *insSize_ = method->insSize;
+        argv[3] = (void*)insSize_;
         ptr += sizeof(u2);
         if (ptr % sizeof(int)) {
             ptr += sizeof(int);
             ptr &= 0xfffffffc;
         }
-        argv[3] = (void*)insSize_;
 
         u4* modArgs_ = (u4*)ptr;
-        for (int i = 0; i < idx; ++i) {
-            modArgs_[i] = modArgs[i];
+        int idx_ = 0;
+        if ((accessFlags & ACC_STATIC) == 0) {
+            modArgs_[0] = modArgs[0];
+            ++idx_;
         }
-        ptr += (unsigned long)idx * sizeof(u4);
+        char* shorty_ = (char*)&method->shorty[1];        /* skip return type */
+        size_t shorty_len = 1;
+        while (*shorty_ != '\0') {
+            switch (*shorty_) {
+                case 'D':
+                    *(double*)&modArgs_[idx_] = *(double*)&modArgs[idx_];
+                    ++idx_;
+                    break;
+                case 'J':
+                    *(long long*)&modArgs_[idx_] = *(long long*)&modArgs[idx_];
+                    ++idx_;
+                    break;
+                default:
+                    modArgs_[idx_] = modArgs[idx_];
+                    break;
+            }
+            ++idx_;
+            ++shorty_len;
+            ++shorty_;
+        }
+        ptr += (unsigned long)idx_ * sizeof(u4);
         if (ptr % sizeof(int)) {
             ptr += sizeof(int);
             ptr &= 0xfffffffc;
         }
         argv[4] = (void*)modArgs_;
 
-        size_t shorty_len = strlen(method->shorty);
-        char* shorty_ = (char*)ptr;
+        shorty_ = (char*)ptr;
         strncpy(shorty_, method->shorty, shorty_len);
         shorty_[shorty_len] = '\0';
         ptr += (unsigned long)(shorty_len + 1) * sizeof(char);
@@ -1270,22 +1271,24 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
         }
         argv[5] = (void*)shorty_;
 
-        void** insns_ = (void**)ptr;
-        *insns_ = (void*) method->insns;
-        ptr += sizeof(void*);
-        if (ptr % sizeof(int)) {
-            ptr += sizeof(int);
-            ptr &= 0xfffffffc;
-        }
-        argv[6] = (void*)insns_;
+        argv[6] = (void*)method->insns;
 
         JValue* pResult_ = (JValue*)ptr;
-        if (pResult)
-            memcpy(pResult_, pResult, sizeof(*pResult));
-        else
-            pResult_ = NULL;
         argv[7] = (void*)pResult_;
         argv[8] = (void*)pResult;
+
+        shorty_ = (char*)argv[5];
+        ++shorty_;
+        while (*shorty_ != '\0') {
+            switch (*shorty_) {
+                case 'D':
+                case 'J':
+                    break;
+                default:
+                    break;
+            }
+            ++shorty_;
+        }
 
         asm volatile(
                 "push {r0, r1, r7}\n"
@@ -1298,7 +1301,7 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 : "r0", "r7", "memory");
         void** argv_ = (void**)stack;
         if (argv_[7])
-            memcpy(argv[8], argv_[7], sizeof(pResult_));
+            memcpy(argv[8], argv_[7], sizeof(JValue));
         free_stack(stack);
     } else {
         dvmPlatformInvoke(env,
