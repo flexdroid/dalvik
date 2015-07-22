@@ -1120,6 +1120,7 @@ static void* alloc_stack(void) {
         for (i = 0; i < NUM_STACK; ++i) {
             ut_stack_used[i] = false;
         }
+        ALOGE("[sandbox] ut_stack_base = %p", ut_stack_base);
         asm volatile(
                 "push {r0, r7}\n"
                 "mov r0, %[base]\n"
@@ -1213,17 +1214,7 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
         void** argv = (void**)stack;
         unsigned long ptr = (unsigned long)argv + 9*sizeof(void*);
 
-        JNIEnv* env_ = (JNIEnv*)ptr;
-        if (env) {
-            memcpy(env_, env, sizeof(*env));
-            ptr += sizeof(*env);
-            if (ptr % sizeof(int)) {
-                ptr += sizeof(int);
-                ptr &= 0xfffffffc;
-            }
-        } else {
-            env_ = NULL;
-        }
+        JNIEnv* env_ = dvmGetUntrustedEnv();
         argv[0] = (void*)env_;
 
         ClassObject* co = (ClassObject*)ptr;

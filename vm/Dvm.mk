@@ -90,6 +90,7 @@ LOCAL_SRC_FILES := \
 	AtomicCache.cpp \
 	BitVector.cpp.arm \
 	CheckJni.cpp \
+	UntrustedJni.cpp \
 	Ddm.cpp \
 	Debugger.cpp \
 	DvmDex.cpp \
