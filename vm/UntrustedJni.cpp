@@ -53,7 +53,7 @@ static void __utm_init(void) {
     if (utm_handle) return;
 
     void* addr = NULL;
-    utm_handle = dlopen_in_sandbox("utm.so\0", RTLD_LAZY, &addr);
+    utm_handle = dlopen_in_sandbox("_libc.so\0", RTLD_LAZY, &addr);
     ut_init_malloc = (void (*) ( void* , size_t )) dlsym(utm_handle, "init_malloc\0");
     ut_malloc = (void* (*) ( size_t )) dlsym(utm_handle, "malloc\0");
     ut_calloc = (void* (*) ( size_t, size_t )) dlsym(utm_handle, "calloc\0");
