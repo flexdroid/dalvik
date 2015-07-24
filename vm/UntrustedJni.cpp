@@ -44,9 +44,6 @@
 static void* utm_handle = NULL;
 static void (*ut_init_malloc) ( void* , size_t ) = NULL;
 static void* (*ut_malloc) ( size_t ) = NULL;
-static void* (*ut_calloc) ( size_t, size_t ) = NULL;
-static void* (*ut_realloc) ( void* , size_t ) = NULL;
-static void (*ut_free) ( void* ) = NULL;
 
 static void* heap = NULL;
 static void __utm_init(void) {
@@ -54,11 +51,9 @@ static void __utm_init(void) {
 
     void* addr = NULL;
     utm_handle = dlopen_in_sandbox("_libc.so\0", RTLD_LAZY, &addr);
-    ut_init_malloc = (void (*) ( void* , size_t )) dlsym(utm_handle, "init_malloc\0");
-    ut_malloc = (void* (*) ( size_t )) dlsym(utm_handle, "malloc\0");
-    ut_calloc = (void* (*) ( size_t, size_t )) dlsym(utm_handle, "calloc\0");
-    ut_realloc = (void* (*) ( void*, size_t )) dlsym(utm_handle, "realloc\0");
-    ut_free = (void (*) ( void* )) dlsym(utm_handle, "free\0");
+    ut_init_malloc = (void (*) ( void* , size_t )) dlsym_in_sandbox(utm_handle,
+            "init_malloc\0");
+    ut_malloc = (void* (*) ( size_t )) dlsym_in_sandbox(utm_handle, "malloc\0");
 
     void* base = mmap(NULL, HEAP_SIZE,
             PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
@@ -80,11 +75,29 @@ static void __utm_init(void) {
             : : [base] "r" (heap));
 }
 
+static void* jnienv_handle = NULL;
+static JNIEnv* (*init_libjnienv)(JNIEnv* , void* (*) ( size_t )) = NULL;
+static JNIEnv* __jnienv_init(JNIEnv* env) {
+    void* addr = NULL;
+    jnienv_handle = dlopen_in_sandbox("libjnienv.so\0", RTLD_LAZY, &addr);
+    if (!jnienv_handle)
+        ALOGE("[sandbox] jnienv_handle is null at %d", __LINE__);
+    init_libjnienv = (JNIEnv* (*)(JNIEnv* , void* (*) ( size_t ))) dlsym_in_sandbox(
+            jnienv_handle, "_Z14init_libjnienvP7_JNIEnvPFPvjE\0");
+    if (!init_libjnienv)
+        ALOGE("[sandbox] init_libjnienv is null at %d", __LINE__);
+    if (!ut_malloc)
+        ALOGE("[sandbox] utm.so must be loaded first! at %d", __LINE__);
+    return init_libjnienv(env, ut_malloc);
+}
+
 static JNIEnv* gUntrustedEnv = NULL;
-JNIEnv* dvmGetUntrustedEnv(void) {
+JNIEnv* dvmGetUntrustedEnv(JNIEnv* env) {
     if (!gUntrustedEnv) {
         __utm_init();
-        gUntrustedEnv = (JNIEnv*)ut_malloc(sizeof(JNIEnv));
+    }
+    if (env && !jnienv_handle) {
+        gUntrustedEnv = __jnienv_init(env);
     }
     return gUntrustedEnv;
 }

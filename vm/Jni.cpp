@@ -1214,8 +1214,7 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
         void** argv = (void**)stack;
         unsigned long ptr = (unsigned long)argv + 9*sizeof(void*);
 
-        JNIEnv* env_ = dvmGetUntrustedEnv();
-        argv[0] = (void*)env_;
+        argv[0] = (void*)dvmGetUntrustedEnv(env);
         argv[1] = (void*)staticMethodClass;
         argv[2] = (void*)method->jniArgInfo;
 
@@ -1276,19 +1275,6 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
         JValue* pResult_ = (JValue*)ptr;
         argv[7] = (void*)pResult_;
         argv[8] = (void*)pResult;
-
-        shorty_ = (char*)argv[5];
-        ++shorty_;
-        while (*shorty_ != '\0') {
-            switch (*shorty_) {
-                case 'D':
-                case 'J':
-                    break;
-                default:
-                    break;
-            }
-            ++shorty_;
-        }
 
         asm volatile(
                 "push {r0, r1, r7}\n"

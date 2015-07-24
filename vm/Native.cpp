@@ -419,7 +419,7 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
     bool opened = false;
     if (classLoader && strncmp(pathName, "/system", sizeof("/system")-1)) {
         /* enforce untrusted malloc loading (utm.so) */
-        dvmGetUntrustedEnv();
+        dvmGetUntrustedEnv(NULL);
 
         /* load jni (*.so file) in the sandbox */
         handle = dlopen_in_sandbox(pathName, RTLD_LAZY, &addr);

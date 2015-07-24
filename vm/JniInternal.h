@@ -169,7 +169,7 @@ struct DebugOutputTarget;
 void dvmDumpJniStats(DebugOutputTarget* target);
 
 #if defined(__arm__)
-JNIEnv* dvmGetUntrustedEnv(void);
+JNIEnv* dvmGetUntrustedEnv(JNIEnv* env);
 #endif
 
 #endif  // DALVIK_JNIINTERNAL_H_
