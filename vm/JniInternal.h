@@ -169,6 +169,7 @@ struct DebugOutputTarget;
 void dvmDumpJniStats(DebugOutputTarget* target);
 
 #if defined(__arm__)
+void dvmUntrustedInit(void);
 JNIEnv* dvmGetUntrustedEnv(JNIEnv* env);
 #endif
 

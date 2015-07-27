@@ -75,6 +75,14 @@ static void __utm_init(void) {
             : : [base] "r" (heap));
 }
 
+void dvmUntrustedInit(void) {
+    static bool once = true;
+    if (once) {
+        __utm_init();
+        once = false;
+    }
+}
+
 static void* jnienv_handle = NULL;
 static JNIEnv* (*init_libjnienv)(JNIEnv* , void* (*) ( size_t )) = NULL;
 static JNIEnv* __jnienv_init(JNIEnv* env) {
@@ -93,9 +101,6 @@ static JNIEnv* __jnienv_init(JNIEnv* env) {
 
 static JNIEnv* gUntrustedEnv = NULL;
 JNIEnv* dvmGetUntrustedEnv(JNIEnv* env) {
-    if (!gUntrustedEnv) {
-        __utm_init();
-    }
     if (env && !jnienv_handle) {
         gUntrustedEnv = __jnienv_init(env);
     }

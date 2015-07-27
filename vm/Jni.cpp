@@ -1278,8 +1278,8 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 
         asm volatile(
                 "push {r0, r1, r7}\n"
-                "mov r1, %[new_sp]\n"
                 "mov r0, %[ptr]\n"
+                "mov r1, %[new_sp]\n"
                 "ldr r7, =0x17a\n"
                 "svc #0\n"
                 "pop {r0, r1, r7}\n"
