@@ -64,6 +64,7 @@ static void __utm_init(void) {
         *(int *)((unsigned long)heap + i*SECTION_SIZE) = 3;
     }
 
+    ALOGE("[sandbox] ut_malloc=%p at %d", ut_malloc, __LINE__);
     ut_init_malloc(heap, READ_HEAP_SECTIONS*SECTION_SIZE);
 
     asm volatile(

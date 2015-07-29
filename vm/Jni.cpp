@@ -1276,6 +1276,29 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
         argv[7] = (void*)pResult_;
         argv[8] = (void*)pResult;
 
+#define __get_tls() \
+        ({ register unsigned int __val; \
+         asm ("mrc p15, 0, %0, c13, c0, 3" : "=r"(__val)); \
+         (volatile void*) __val; })
+        void** old_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls()));
+
+        void** new_tls = (void**)((unsigned long)stack+PAGESIZE);
+        for (size_t i = 0; i < 140; ++i) {
+            new_tls[i] = NULL;
+        }
+        new_tls[0] = new_tls;
+        new_tls[1] = (void*)((unsigned long)stack+2*PAGESIZE);
+        memcpy(new_tls[1], old_tls[1], 576);
+        new_tls[2] = NULL;
+#define __set_tls(arg) \
+        asm volatile( "push {r0, r7}\n" \
+                "mov r0, %[tls]\n" \
+                "ldr r7, =0x000f0005\n" \
+                "svc #0\n" \
+                "pop {r0, r7}\n" \
+                : : [tls] "r" (arg));
+        __set_tls(new_tls);
+
         asm volatile(
                 "push {r0, r1, r7}\n"
                 "mov r0, %[ptr]\n"
@@ -1283,8 +1306,10 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 "ldr r7, =0x17a\n"
                 "svc #0\n"
                 "pop {r0, r1, r7}\n"
-                : : [ptr] "r" (method->sandbox), [new_sp] "r" (stack)
-                : "r0", "r7", "memory");
+                : : [ptr] "r" (method->sandbox), [new_sp] "r" (stack));
+
+        __set_tls(old_tls);
+
         void** argv_ = (void**)stack;
         if (argv_[7])
             memcpy(argv[8], argv_[7], sizeof(JValue));
