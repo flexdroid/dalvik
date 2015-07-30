@@ -1,21 +1,43 @@
-#include "libjnienv.h"
+#include <jni.h>
+#include <string.h>
 
-static void jump_out(void) {
+#include "cutils/log.h"
+
+#define __get_tls() \
+        ({ register unsigned int __val; \
+         asm ("mrc p15, 0, %0, c13, c0, 3" : "=r"(__val)); \
+         (volatile void*) __val; })
+
+#define __set_tls(arg) \
+        asm volatile( "push {r0, r7}\n" \
+                "mov r0, %[tls]\n" \
+                "ldr r7, =0x000f0005\n" \
+                "svc #0\n" \
+                "pop {r0, r7}\n" \
+                : : [tls] "r" (arg));
+
+static void** jump_out(void) {
+    void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls()));
+    void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*));
+    __set_tls(old_tls);
+    void** tmp = reinterpret_cast<void**>(const_cast<void*>(__get_tls()));
     asm volatile(
             "mov ip, r7\n"
             "ldr r7, =0x17d\n"
             "svc #0\n"
             "mov r7, ip\n"
             : : );
+    return new_tls;
 }
 
-static void jump_in(void) {
+static void jump_in(void** tls) {
     asm volatile(
             "mov ip, r7\n"
             "ldr r7, =0x17c\n"
             "svc #0\n"
             "mov r7, ip\n"
             : : );
+    __set_tls(tls);
 }
 
 static JNIEnv* gEnv = NULL;
@@ -28,233 +50,233 @@ static void* (*ut_malloc) ( size_t ) = NULL;
  */
 
 static jint UT_GetVersion(JNIEnv* env) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->GetVersion();
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jclass UT_DefineClass(JNIEnv* env, const char *name, jobject loader,
     const jbyte* buf, jsize bufLen)
 {
-    jump_out();
+    void** tls = jump_out();
     jclass ret = gEnv->DefineClass(name, loader, buf, bufLen);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jclass UT_FindClass(JNIEnv* env, const char* name) {
-    jump_out();
+    void** tls = jump_out();
     jclass ret = gEnv->FindClass(name);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jclass UT_GetSuperclass(JNIEnv* env, jclass jclazz) {
-    jump_out();
+    void** tls = jump_out();
     jclass ret = gEnv->GetSuperclass(jclazz);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jboolean UT_IsAssignableFrom(JNIEnv* env, jclass jclazz1, jclass jclazz2) {
-    jump_out();
+    void** tls = jump_out();
     jboolean ret = gEnv->IsAssignableFrom(jclazz1, jclazz2);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jmethodID UT_FromReflectedMethod(JNIEnv* env, jobject jmethod) {
-    jump_out();
+    void** tls = jump_out();
     jmethodID ret = gEnv->FromReflectedMethod(jmethod);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jfieldID UT_FromReflectedField(JNIEnv* env, jobject jfield) {
-    jump_out();
+    void** tls = jump_out();
     jfieldID ret = gEnv->FromReflectedField(jfield);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_ToReflectedMethod(JNIEnv* env, jclass jcls, jmethodID methodID, jboolean isStatic) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->ToReflectedMethod(jcls, methodID, isStatic);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_ToReflectedField(JNIEnv* env, jclass jcls, jfieldID fieldID, jboolean isStatic) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->ToReflectedField(jcls, fieldID, isStatic);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jint UT_Throw(JNIEnv* env, jthrowable jobj) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->Throw(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jint UT_ThrowNew(JNIEnv* env, jclass jcls, const char* message) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->ThrowNew(jcls, message);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jthrowable UT_ExceptionOccurred(JNIEnv* env) {
-    jump_out();
+    void** tls = jump_out();
     jthrowable ret = gEnv->ExceptionOccurred();
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_ExceptionDescribe(JNIEnv* env) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->ExceptionDescribe();
-    jump_in();
+    jump_in(tls);
 }
 
 static void UT_ExceptionClear(JNIEnv* env) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->ExceptionClear();
-    jump_in();
+    jump_in(tls);
 }
 
 static void UT_FatalError(JNIEnv* env, const char* msg) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->FatalError(msg);
-    jump_in();
+    jump_in(tls);
 }
 
 static jint UT_PushLocalFrame(JNIEnv* env, jint capacity) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->PushLocalFrame(capacity);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_PopLocalFrame(JNIEnv* env, jobject jresult) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->PopLocalFrame(jresult);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_NewGlobalRef(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->NewGlobalRef(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_DeleteGlobalRef(JNIEnv* env, jobject jglobalRef) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->DeleteGlobalRef(jglobalRef);
-    jump_in();
+    jump_in(tls);
 }
 
 static jobject UT_NewLocalRef(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->NewLocalRef(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_DeleteLocalRef(JNIEnv* env, jobject jlocalRef) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->DeleteLocalRef(jlocalRef);
-    jump_in();
+    jump_in(tls);
 }
 
 static jint UT_EnsureLocalCapacity(JNIEnv* env, jint capacity) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->EnsureLocalCapacity(capacity);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jboolean UT_IsSameObject(JNIEnv* env, jobject jref1, jobject jref2) {
-    jump_out();
+    void** tls = jump_out();
     jboolean ret = gEnv->IsSameObject(jref1, jref2);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_AllocObject(JNIEnv* env, jclass jcls) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->AllocObject(jcls);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_NewObject(JNIEnv* env, jclass jclazz, jmethodID methodID, ...) {
-    jump_out();
+    void** tls = jump_out();
     va_list args;
     va_start(args, methodID);
     jobject ret = gEnv->NewObjectV(jclazz, methodID, args);
     va_end(args);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_NewObjectV(JNIEnv* env, jclass jclazz, jmethodID methodID, va_list args) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->NewObjectV(jclazz, methodID, args);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_NewObjectA(JNIEnv* env, jclass jclazz, jmethodID methodID, jvalue* args) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->NewObjectA(jclazz, methodID, args);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jclass UT_GetObjectClass(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jclass ret = gEnv->GetObjectClass(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jboolean UT_IsInstanceOf(JNIEnv* env, jobject jobj, jclass jclazz) {
-    jump_out();
+    void** tls = jump_out();
     jboolean ret = gEnv->IsInstanceOf(jobj, jclazz);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jmethodID UT_GetMethodID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    jump_out();
+    void** tls = jump_out();
     jmethodID ret = gEnv->GetMethodID(jclazz, name, sig);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jfieldID UT_GetFieldID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    jump_out();
+    void** tls = jump_out();
     jfieldID ret = gEnv->GetFieldID(jclazz, name, sig);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jmethodID UT_GetStaticMethodID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    jump_out();
+    void** tls = jump_out();
     jmethodID ret = gEnv->GetStaticMethodID(jclazz, name, sig);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jfieldID UT_GetStaticFieldID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    jump_out();
+    void** tls = jump_out();
     jfieldID ret = gEnv->GetStaticFieldID(jclazz, name, sig);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
@@ -262,9 +284,9 @@ static jfieldID UT_GetStaticFieldID(JNIEnv* env, jclass jclazz, const char* name
     static _ctype UT_GetStatic##_jname##Field(JNIEnv* env, jclass jclazz,   \
         jfieldID fieldID)                                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype value = gEnv->GetStatic##_jname##Field(jclazz, fieldID); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return value;                                                       \
     }
 GET_STATIC_TYPE_FIELD(jobject, Object, true);
@@ -281,9 +303,9 @@ GET_STATIC_TYPE_FIELD(jdouble, Double, false);
 static     void UT_SetStatic##_jname##Field(JNIEnv* env, jclass jclazz,        \
         jfieldID fieldID, _ctype value)                                     \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->SetStatic##_jname##Field(jclazz, fieldID, value);       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }
 SET_STATIC_TYPE_FIELD(jobject, Object*, Object, true);
 SET_STATIC_TYPE_FIELD(jboolean, bool, Boolean, false);
@@ -299,9 +321,9 @@ SET_STATIC_TYPE_FIELD(jdouble, double, Double, false);
 static     _ctype UT_Get##_jname##Field(JNIEnv* env, jobject jobj,             \
         jfieldID fieldID)                                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype value = gEnv->Get##_jname##Field(jobj, fieldID);       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return value;                                                       \
     }
 GET_TYPE_FIELD(jobject, Object, true);
@@ -318,9 +340,9 @@ GET_TYPE_FIELD(jdouble, Double, false);
 static     void UT_Set##_jname##Field(JNIEnv* env, jobject jobj,               \
         jfieldID fieldID, _ctype value)                                     \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->Set##_jname##Field(jobj, fieldID, value);         \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }
 SET_TYPE_FIELD(jobject, Object*, Object, true);
 SET_TYPE_FIELD(jboolean, bool, Boolean, false);
@@ -336,54 +358,54 @@ SET_TYPE_FIELD(jdouble, double, Double, false);
 static     _ctype UT_Call##_jname##Method(JNIEnv* env, jobject jobj,           \
         jmethodID methodID, ...)                                            \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         va_list args; \
         va_start(args, methodID);                                           \
         _ctype ret = gEnv->Call##_jname##MethodV(jobj, methodID, args); \
         va_end(args);                                                       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_Call##_jname##MethodV(JNIEnv* env, jobject jobj,          \
         jmethodID methodID, va_list args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype ret = gEnv->Call##_jname##MethodV(jobj, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_Call##_jname##MethodA(JNIEnv* env, jobject jobj,          \
         jmethodID methodID, jvalue* args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype ret = gEnv->Call##_jname##MethodA(jobj, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }
 #define CALL_VIRTUAL_VOID                                                   \
 static     void UT_CallVoidMethod(JNIEnv* env, jobject jobj,                   \
         jmethodID methodID, ...)                                            \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         va_list args; \
         va_start(args, methodID);                                           \
         gEnv->CallVoidMethodV(jobj, methodID, args); \
         va_end(args);                                                       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }                                                                       \
 static     void UT_CallVoidMethodV(JNIEnv* env, jobject jobj,          \
         jmethodID methodID, va_list args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->CallVoidMethodV(jobj, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }                                                                       \
 static     void UT_CallVoidMethodA(JNIEnv* env, jobject jobj,          \
         jmethodID methodID, jvalue* args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->CallVoidMethodA(jobj, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }
 CALL_VIRTUAL(jobject, Object);
 CALL_VIRTUAL(jboolean, Boolean);
@@ -400,60 +422,60 @@ CALL_VIRTUAL_VOID;
 static     _ctype UT_CallNonvirtual##_jname##Method(JNIEnv* env, jobject jobj, \
         jclass jclazz, jmethodID methodID, ...)                             \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         va_list args; \
         va_start(args, methodID);                                           \
         _ctype ret = gEnv->CallNonvirtual##_jname##MethodV(jobj,      \
                 jclazz, methodID, args);                                    \
         va_end(args);                                                       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_CallNonvirtual##_jname##MethodV(JNIEnv* env, jobject jobj,\
         jclass jclazz, jmethodID methodID, va_list args)                    \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype ret = gEnv->CallNonvirtual##_jname##MethodV(jobj,      \
                 jclazz, methodID, args);                                    \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_CallNonvirtual##_jname##MethodA(JNIEnv* env, jobject jobj,\
         jclass jclazz, jmethodID methodID, jvalue* args)                    \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype ret = gEnv->CallNonvirtual##_jname##MethodA(jobj,      \
                 jclazz, methodID, args);                                    \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }
 #define CALL_NONVIRTUAL_VOID                                     \
 static     void UT_CallNonvirtualVoidMethod(JNIEnv* env, jobject jobj, \
         jclass jclazz, jmethodID methodID, ...)                             \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         va_list args; \
         va_start(args, methodID);                                           \
         gEnv->CallNonvirtualVoidMethodV(jobj,      \
                 jclazz, methodID, args);                                    \
         va_end(args);                                                       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }                                                                       \
 static     void UT_CallNonvirtualVoidMethodV(JNIEnv* env, jobject jobj,\
         jclass jclazz, jmethodID methodID, va_list args)                    \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->CallNonvirtualVoidMethodV(jobj,      \
                 jclazz, methodID, args);                                    \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }                                                                       \
 static     void UT_CallNonvirtualVoidMethodA(JNIEnv* env, jobject jobj,\
         jclass jclazz, jmethodID methodID, jvalue* args)                    \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->CallNonvirtualVoidMethodA(jobj,      \
                 jclazz, methodID, args);                                    \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }
 CALL_NONVIRTUAL(jobject, Object);
 CALL_NONVIRTUAL(jboolean, Boolean);
@@ -471,54 +493,54 @@ CALL_NONVIRTUAL_VOID;
 static     _ctype UT_CallStatic##_jname##Method(JNIEnv* env, jclass jclazz,    \
         jmethodID methodID, ...)                                            \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         va_list args; \
         va_start(args, methodID);                                           \
         _ctype ret = gEnv->CallStatic##_jname##MethodV(jclazz, methodID, args); \
         va_end(args);                                                       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_CallStatic##_jname##MethodV(JNIEnv* env, jclass jclazz,   \
         jmethodID methodID, va_list args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype ret = gEnv->CallStatic##_jname##MethodV(jclazz, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_CallStatic##_jname##MethodA(JNIEnv* env, jclass jclazz,   \
         jmethodID methodID, jvalue* args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         _ctype ret = gEnv->CallStatic##_jname##MethodA(jclazz, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
         return ret;                                                         \
     }
 #define CALL_STATIC_VOID                                         \
 static     void UT_CallStaticVoidMethod(JNIEnv* env, jclass jclazz,    \
         jmethodID methodID, ...)                                            \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         va_list args; \
         va_start(args, methodID);                                           \
         gEnv->CallStaticVoidMethodV(jclazz, methodID, args); \
         va_end(args);                                                       \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }                                                                       \
 static     void UT_CallStaticVoidMethodV(JNIEnv* env, jclass jclazz,   \
         jmethodID methodID, va_list args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->CallStaticVoidMethodV(jclazz, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }                                                                       \
 static     void UT_CallStaticVoidMethodA(JNIEnv* env, jclass jclazz,   \
         jmethodID methodID, jvalue* args)                                   \
     {                                                                       \
-        jump_out();                                                         \
+        void** tls = jump_out();                                                         \
         gEnv->CallStaticVoidMethodA(jclazz, methodID, args); \
-        jump_in();                                                          \
+        jump_in(tls);                                                          \
     }
 CALL_STATIC(jobject, Object);
 CALL_STATIC(jboolean, Boolean);
@@ -532,21 +554,21 @@ CALL_STATIC(jdouble, Double);
 CALL_STATIC_VOID;
 
 static jstring UT_NewString(JNIEnv* env, const jchar* unicodeChars, jsize len) {
-    jump_out();
+    void** tls = jump_out();
     jstring ret = gEnv->NewString(unicodeChars, len);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jsize UT_GetStringLength(JNIEnv* env, jstring jstr) {
-    jump_out();
+    void** tls = jump_out();
     jsize ret = gEnv->GetStringLength(jstr);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCopy) {
-    jump_out();
+    void** tls = jump_out();
     jsize len = gEnv->GetStringLength(jstr);
     jchar* buf = NULL;
     if (len) {
@@ -554,32 +576,32 @@ static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCop
         const jchar* str = gEnv->GetStringChars(jstr, isCopy);
         memcpy(buf, str, sizeof(jchar) * len);
     }
-    jump_in();
+    jump_in(tls);
     return (const jchar*)buf;
 }
 
 static void UT_ReleaseStringChars(JNIEnv* env, jstring jstr, const jchar* chars) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->ReleaseStringChars(jstr, chars);
-    jump_in();
+    jump_in(tls);
 }
 
 static jstring UT_NewStringUTF(JNIEnv* env, const char* bytes) {
-    jump_out();
+    void** tls = jump_out();
     jstring ret = gEnv->NewStringUTF(bytes);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jsize UT_GetStringUTFLength(JNIEnv* env, jstring jstr) {
-    jump_out();
+    void** tls = jump_out();
     jsize ret = gEnv->GetStringUTFLength(jstr);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isCopy) {
-    jump_out();
+    void** tls = jump_out();
     jsize len = gEnv->GetStringUTFLength(jstr);
     char* buf = NULL;
     if (len) {
@@ -587,50 +609,50 @@ static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isC
         const char* str = gEnv->GetStringUTFChars(jstr, isCopy);
         memcpy(buf, str, len);
     }
-    jump_in();
+    jump_in(tls);
     return (const char*)buf;
 }
 
 static void UT_ReleaseStringUTFChars(JNIEnv* env, jstring jstr, const char* utf) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->ReleaseStringUTFChars(jstr, utf);
-    jump_in();
+    jump_in(tls);
 }
 
 static jsize UT_GetArrayLength(JNIEnv* env, jarray jarr) {
-    jump_out();
+    void** tls = jump_out();
     jsize ret = gEnv->GetArrayLength(jarr);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobjectArray UT_NewObjectArray(JNIEnv* env, jsize length,
     jclass jelementClass, jobject jinitialElement)
 {
-    jump_out();
+    void** tls = jump_out();
     jobjectArray ret = gEnv->NewObjectArray(length, jelementClass, jinitialElement);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_GetObjectArrayElement(JNIEnv* env, jobjectArray jarr, jsize index) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->GetObjectArrayElement(jarr, index);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_SetObjectArrayElement(JNIEnv* env, jobjectArray jarr, jsize index, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->SetObjectArrayElement(jarr, index, jobj);
-    jump_in();
+    jump_in(tls);
 }
 
 #define NEW_PRIMITIVE_ARRAY(_artype, _jname) \
 static     _artype UT_New##_jname##Array(JNIEnv* env, jsize length) { \
-        jump_out(); \
+        void** tls = jump_out(); \
         _artype result = gEnv->New##_jname##Array(length); \
-        jump_in(); \
+        jump_in(tls); \
         return result; \
     }
 NEW_PRIMITIVE_ARRAY(jbooleanArray, Boolean);
@@ -646,7 +668,7 @@ NEW_PRIMITIVE_ARRAY(jdoubleArray, Double);
 static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
         _ctype##Array jarr, jboolean* isCopy) \
     { \
-        jump_out(); \
+        void** tls = jump_out(); \
         jsize len = gEnv->GetArrayLength(jarr); \
         _ctype* data = NULL; \
         if (len) { \
@@ -654,7 +676,7 @@ static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
             _ctype* val = gEnv->Get##_jname##ArrayElements(jarr, isCopy); \
             memcpy(data, val, sizeof(_ctype)*len); \
         } \
-        jump_in(); \
+        jump_in(tls); \
         return data; \
     }
 
@@ -662,27 +684,27 @@ static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
 static     void UT_Release##_jname##ArrayElements(JNIEnv* env,                 \
         _ctype##Array jarr, _ctype* elems, jint mode)                       \
     {                                                                       \
-        jump_out(); \
+        void** tls = jump_out(); \
         gEnv->Release##_jname##ArrayElements(jarr, elems, mode); \
-        jump_in(); \
+        jump_in(tls); \
     }
 
 #define GET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
 static     void UT_Get##_jname##ArrayRegion(JNIEnv* env, \
         _ctype##Array jarr, jsize start, jsize len, _ctype* buf) \
     { \
-        jump_out(); \
+        void** tls = jump_out(); \
         gEnv->Get##_jname##ArrayRegion(jarr, start, len, buf); \
-        jump_in(); \
+        jump_in(tls); \
     }
 
 #define SET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
 static     void UT_Set##_jname##ArrayRegion(JNIEnv* env, \
         _ctype##Array jarr, jsize start, jsize len, const _ctype* buf) \
     { \
-        jump_out(); \
+        void** tls = jump_out(); \
         gEnv->Set##_jname##ArrayRegion(jarr, start, len, buf); \
-        jump_in(); \
+        jump_in(tls); \
     }
 
 /*
@@ -710,126 +732,126 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double);
 static jint UT_RegisterNatives(JNIEnv* env, jclass jclazz,
     const JNINativeMethod* methods, jint nMethods)
 {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->RegisterNatives(jclazz, methods, nMethods);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jint UT_UnregisterNatives(JNIEnv* env, jclass jclazz) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->UnregisterNatives(jclazz);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jint UT_MonitorEnter(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->MonitorEnter(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jint UT_MonitorExit(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->MonitorExit(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jint UT_GetJavaVM(JNIEnv* env, JavaVM** vm) {
-    jump_out();
+    void** tls = jump_out();
     jint ret = gEnv->GetJavaVM(vm);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_GetStringRegion(JNIEnv* env, jstring jstr, jsize start, jsize len, jchar* buf) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->GetStringRegion(jstr, start, len, buf);
-    jump_in();
+    jump_in(tls);
 }
 
 static void UT_GetStringUTFRegion(JNIEnv* env, jstring jstr, jsize start, jsize len, char* buf) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->GetStringUTFRegion(jstr, start, len, buf);
-    jump_in();
+    jump_in(tls);
 }
 
 // TODO
 static void* UT_GetPrimitiveArrayCritical(JNIEnv* env, jarray jarr, jboolean* isCopy) {
-    jump_out();
+    void** tls = jump_out();
     void* ret = gEnv->GetPrimitiveArrayCritical(jarr, isCopy);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_ReleasePrimitiveArrayCritical(JNIEnv* env, jarray jarr, void* carray, jint mode) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->ReleasePrimitiveArrayCritical(jarr, carray, mode);
-    jump_in();
+    jump_in(tls);
 }
 
 // TODO
 static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* isCopy) {
-    jump_out();
+    void** tls = jump_out();
     const jchar* ret = gEnv->GetStringCritical(jstr, isCopy);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_ReleaseStringCritical(JNIEnv* env, jstring jstr, const jchar* carray) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->ReleaseStringCritical(jstr, carray);
-    jump_in();
+    jump_in(tls);
 }
 
 static jweak UT_NewWeakGlobalRef(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jweak ret = gEnv->NewWeakGlobalRef(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static void UT_DeleteWeakGlobalRef(JNIEnv* env, jweak wref) {
-    jump_out();
+    void** tls = jump_out();
     gEnv->DeleteWeakGlobalRef(wref);
-    jump_in();
+    jump_in(tls);
 }
 
 static jboolean UT_ExceptionCheck(JNIEnv* env) {
-    jump_out();
+    void** tls = jump_out();
     jboolean ret = gEnv->ExceptionCheck();
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobjectRefType UT_GetObjectRefType(JNIEnv* env, jobject jobj) {
-    jump_out();
+    void** tls = jump_out();
     jobjectRefType ret = gEnv->GetObjectRefType(jobj);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jobject UT_NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
-    jump_out();
+    void** tls = jump_out();
     jobject ret = gEnv->NewDirectByteBuffer(address, capacity);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 //TODO
 static void* UT_GetDirectBufferAddress(JNIEnv* env, jobject jbuf) {
-    jump_out();
+    void** tls = jump_out();
     void* ret = gEnv->GetDirectBufferAddress(jbuf);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
 static jlong UT_GetDirectBufferCapacity(JNIEnv* env, jobject jbuf) {
-    jump_out();
+    void** tls = jump_out();
     jlong ret = gEnv->GetDirectBufferCapacity(jbuf);
-    jump_in();
+    jump_in(tls);
     return ret;
 }
 
@@ -1115,7 +1137,7 @@ static const struct JNINativeInterface gBridgeInterface = {
 };
 
 static JNIEnv gBridgeEnv;
-JNIEnv* init_libjnienv(JNIEnv* env, void* (*f) ( size_t )) {
+extern "C" JNIEnv* init_libjnienv(JNIEnv* env, void* (*f) ( size_t )) {
     gEnv = env;
     ut_malloc = f;
     gBridgeEnv.functions = &gBridgeInterface;

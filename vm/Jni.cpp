@@ -1282,10 +1282,14 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
          (volatile void*) __val; })
         void** old_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls()));
 
-        void** new_tls = (void**)((unsigned long)stack+PAGESIZE);
+        void** new_tls = (void**)((unsigned long)stack+PAGESIZE+sizeof(void*));
         for (size_t i = 0; i < 140; ++i) {
             new_tls[i] = NULL;
         }
+        *(void**)((unsigned long)new_tls-sizeof(void*)) = old_tls;
+        ALOGE("[sandbox] new_tls[-1]=%p, old_tls=%p",
+                *(void**)((unsigned long)new_tls-sizeof(void*)), old_tls);
+        ALOGE("[sandbox] self=%p at %d", dvmThreadSelf(), __LINE__);
         new_tls[0] = new_tls;
         new_tls[1] = (void*)((unsigned long)stack+2*PAGESIZE);
         memcpy(new_tls[1], old_tls[1], 576);
@@ -1297,6 +1301,7 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 "svc #0\n" \
                 "pop {r0, r7}\n" \
                 : : [tls] "r" (arg));
+        ALOGE("[sandbox] self=%p at %d", dvmThreadSelf(), __LINE__);
         __set_tls(new_tls);
 
         asm volatile(
@@ -1309,6 +1314,7 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 : : [ptr] "r" (method->sandbox), [new_sp] "r" (stack));
 
         __set_tls(old_tls);
+        ALOGE("[sandbox] self=%p at %d", dvmThreadSelf(), __LINE__);
 
         void** argv_ = (void**)stack;
         if (argv_[7])

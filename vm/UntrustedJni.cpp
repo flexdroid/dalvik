@@ -92,7 +92,7 @@ static JNIEnv* __jnienv_init(JNIEnv* env) {
     if (!jnienv_handle)
         ALOGE("[sandbox] jnienv_handle is null at %d", __LINE__);
     init_libjnienv = (JNIEnv* (*)(JNIEnv* , void* (*) ( size_t ))) dlsym_in_sandbox(
-            jnienv_handle, "_Z14init_libjnienvP7_JNIEnvPFPvjE\0");
+            jnienv_handle, "init_libjnienv\0");
     if (!init_libjnienv)
         ALOGE("[sandbox] init_libjnienv is null at %d", __LINE__);
     if (!ut_malloc)
