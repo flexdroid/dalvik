@@ -68,11 +68,12 @@ static void __utm_init(void) {
     ut_init_malloc(heap, READ_HEAP_SECTIONS*SECTION_SIZE);
 
     asm volatile(
-            "push {r0, r7}\n"
+            "push {r0, r1, r7}\n"
             "mov r0, %[base]\n"
+            "mov r1, 127\n"
             "ldr r7, =0x17e\n"
             "svc #0\n"
-            "pop {r0, r7}\n"
+            "pop {r0, r1, r7}\n"
             : : [base] "r" (heap));
 }
 

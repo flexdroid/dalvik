@@ -1124,6 +1124,7 @@ static void* alloc_stack(void) {
         asm volatile(
                 "push {r0, r7}\n"
                 "mov r0, %[base]\n"
+                "mov r1, #127\n"
                 "ldr r7, =0x17e\n"
                 "svc #0\n"
                 "pop {r0, r7}\n"
