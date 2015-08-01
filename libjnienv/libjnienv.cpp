@@ -601,6 +601,7 @@ static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCop
 }
 
 static void UT_ReleaseStringChars(JNIEnv* env, jstring jstr, const jchar* chars) {
+    if (!chars) return;
     void** tls = jump_out();
     get_real_ptr(const jchar*, str, chars);
     gEnv->ReleaseStringChars(jstr, str);
@@ -641,6 +642,7 @@ static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isC
 }
 
 static void UT_ReleaseStringUTFChars(JNIEnv* env, jstring jstr, const char* utf) {
+    if (!utf) return;
     void** tls = jump_out();
     get_real_ptr(const char*, str, utf);
     gEnv->ReleaseStringUTFChars(jstr, str);
@@ -718,6 +720,7 @@ static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
 static     void UT_Release##_jname##ArrayElements(JNIEnv* env,                 \
         _ctype##Array jarr, _ctype* elems, jint mode)                       \
     {                                                                       \
+        if (!elems) return; \
         void** tls = jump_out(); \
         get_real_ptr(_ctype *, data, elems); \
         gEnv->Release##_jname##ArrayElements(jarr, data, mode); \
@@ -834,6 +837,7 @@ static void* UT_GetPrimitiveArrayCritical(JNIEnv* env, jarray jarr, jboolean* is
 }
 
 static void UT_ReleasePrimitiveArrayCritical(JNIEnv* env, jarray jarr, void* carray, jint mode) {
+    if (!carray) return;
     void** tls = jump_out();
     get_real_ptr(void*, __arr, carray);
     gEnv->ReleasePrimitiveArrayCritical(jarr, __arr, mode);
@@ -860,6 +864,7 @@ static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* is
 }
 
 static void UT_ReleaseStringCritical(JNIEnv* env, jstring jstr, const jchar* carray) {
+    if (!carray) return;
     void** tls = jump_out();
     get_real_ptr(const jchar*, str, carray);
     gEnv->ReleaseStringCritical(jstr, str);
