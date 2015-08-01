@@ -42,9 +42,12 @@
     ALOGE("%s ----< at %d", __FUNCTION__, __LINE__); \
     __set_tls(tls);
 
-static JNIEnv* gEnv = NULL;
-static void* (*ut_malloc) ( size_t ) = NULL;
-// static void (*ut_free) ( void* ) = NULL;
+/*
+ * TLS to JNIEnv*
+ */
+std::map<void*, JNIEnv*> env_map;
+#define gEnv \
+    env_map[const_cast<void*>(__get_tls())]
 
 /*
  * native ptr to java ptr
@@ -1195,9 +1198,11 @@ static const struct JNINativeInterface gBridgeInterface = {
 };
 
 static JNIEnv gBridgeEnv;
-extern "C" JNIEnv* init_libjnienv(JNIEnv* env, void* (*f) ( size_t )) {
-    gEnv = env;
-    ut_malloc = f;
+extern "C" JNIEnv* init_libjnienv(void) {
     gBridgeEnv.functions = &gBridgeInterface;
     return &gBridgeEnv;
+}
+
+extern "C" void set_jnienv(JNIEnv* env) {
+    gEnv = env;
 }

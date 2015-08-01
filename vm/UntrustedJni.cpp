@@ -86,26 +86,28 @@ void dvmUntrustedInit(void) {
 }
 
 static void* jnienv_handle = NULL;
-static JNIEnv* (*init_libjnienv)(JNIEnv* , void* (*) ( size_t )) = NULL;
-static JNIEnv* __jnienv_init(JNIEnv* env) {
+static JNIEnv* (*init_libjnienv)(void) = NULL;
+static void (*set_jnienv)(JNIEnv*) = NULL;
+static JNIEnv* __jnienv_init(void) {
     void* addr = NULL;
     jnienv_handle = dlopen_in_sandbox("libjnienv.so\0", RTLD_LAZY, &addr);
     if (!jnienv_handle)
         ALOGE("[sandbox] jnienv_handle is null at %d", __LINE__);
-    init_libjnienv = (JNIEnv* (*)(JNIEnv* , void* (*) ( size_t ))) dlsym_in_sandbox(
-            jnienv_handle, "init_libjnienv\0");
+    init_libjnienv = (JNIEnv* (*)(void)) dlsym_in_sandbox(jnienv_handle, "init_libjnienv\0");
     if (!init_libjnienv)
         ALOGE("[sandbox] init_libjnienv is null at %d", __LINE__);
-    if (!ut_malloc)
-        ALOGE("[sandbox] utm.so must be loaded first! at %d", __LINE__);
-    return init_libjnienv(env, ut_malloc);
+    set_jnienv = (void (*)(JNIEnv*)) dlsym_in_sandbox(jnienv_handle, "set_jnienv\0");
+    if (!set_jnienv)
+        ALOGE("[sandbox] set_jnienv is null at %d", __LINE__);
+    return init_libjnienv();
 }
 
 static JNIEnv* gUntrustedEnv = NULL;
 JNIEnv* dvmGetUntrustedEnv(JNIEnv* env) {
-    if (env && !jnienv_handle) {
-        gUntrustedEnv = __jnienv_init(env);
+    if (!jnienv_handle) {
+        gUntrustedEnv = __jnienv_init();
     }
+    set_jnienv(env);
     return gUntrustedEnv;
 }
 #endif
