@@ -18,8 +18,10 @@
                 "pop {r0, r7}\n" \
                 : : [tls] "r" (arg));
 
+#define __do_log 0
+
 #define jump_out() \
-    ({ ALOGE("%s ----> at %d", __FUNCTION__, __LINE__); \
+    ({ if(__do_log) ALOGE("%s ----> at %d", __FUNCTION__, __LINE__); \
     void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
     void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*)); \
     __set_tls(old_tls); \
@@ -39,7 +41,7 @@
             "svc #0\n" \
             "mov r7, ip\n" \
             : : ); \
-    ALOGE("%s ----< at %d", __FUNCTION__, __LINE__); \
+    if(__do_log) ALOGE("%s ----< at %d", __FUNCTION__, __LINE__); \
     __set_tls(tls);
 
 /*
