@@ -112,8 +112,6 @@ void dvmResolveNativeMethod(const u4* args, JValue* pResult,
     /* now scan any DLLs we have loaded for JNI signatures */
     void* func = lookupSharedLibMethod(method);
     ((Method*)method)->sandbox = lookupSharedLibMethodForSandbox(method);
-    if (((Method*)method)->sandbox)
-        ALOGE("[sandbox] %p at %s, %d", ((Method*)method)->sandbox, __FILE__, __LINE__);
     if (func != NULL) {
         /* found it, point it at the JNI bridge and then call it */
         dvmUseJNIBridge((Method*) method, func);
@@ -234,9 +232,6 @@ static SharedLib* addSharedLibEntry(SharedLib* pLib)
 static void freeSharedLibEntry(void* ptr)
 {
     SharedLib* pLib = (SharedLib*) ptr;
-    if (pLib->sandbox)
-        ALOGE("[sandbox] freeSharedLibEntry pLib->sandbox=%p !!", pLib->sandbox);
-
     /*
      * Calling dlclose() here is somewhat dangerous, because it's possible
      * that a thread outside the VM is still accessing the code we loaded.
@@ -418,12 +413,17 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
     /* addr will be the address of sandbox */
     bool opened = false;
     if (classLoader && strncmp(pathName, "/system", sizeof("/system")-1)) {
+#define TIMESTAMP 1
+#if TIMESTAMP
+        struct timeval start;
+        gettimeofday(&start, NULL);
+#endif
+
         /* enforce untrusted malloc loading (utm.so) */
         dvmUntrustedInit();
 
         /* load jni (*.so file) in the sandbox */
         handle = dlopen_in_sandbox(pathName, RTLD_LAZY, &addr);
-        ALOGE("[sandbox] addr = %p", addr);
         opened = true;
 
         /* construct trampoline/spring-board in the sandbox */
@@ -431,6 +431,18 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
         memcpy(addr, (void*)((unsigned char*)dvmPlatformInvoke), 1 << 12);
         memcpy((void*)((unsigned long)addr + (1<<11)),
                 (void*)((unsigned char*)dvmPlatformInvoke_wrapper-1), 1 << 11);
+
+#if TIMESTAMP
+        struct timeval now;
+        gettimeofday(&now, NULL);
+        if (now.tv_usec < start.tv_usec) {
+            now.tv_usec = now.tv_usec + 1000000;
+            --now.tv_sec;
+        }
+        now.tv_usec -= start.tv_usec;
+        now.tv_sec -= start.tv_sec;
+        ALOGE("[sandbox] %s load time = %ld.%06ld", pathName, now.tv_sec, now.tv_usec);
+#endif
     }
 
     if (!opened) {
@@ -885,9 +897,11 @@ bail:
     free(mangleCM);
     free(mangleSig);
     free(mangleCMSig);
-    if (func != NULL)
+    if (func != NULL) {
+        if (pLib->sandbox)
+            ALOGE("[sandbox] lib=%s, method=%s", pLib->pathName, meth->name);
         return (int) pLib->sandbox;
-    else
+    } else
         return (int) NULL;
 }
 

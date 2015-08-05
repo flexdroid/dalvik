@@ -1120,7 +1120,6 @@ static void* alloc_stack(void) {
         for (i = 0; i < NUM_STACK; ++i) {
             ut_stack_used[i] = false;
         }
-        ALOGE("[sandbox] ut_stack_base = %p", ut_stack_base);
         asm volatile(
                 "push {r0, r7}\n"
                 "mov r0, %[base]\n"
@@ -1208,8 +1207,14 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
     JNIEnv* env = self->jniEnv;
     COMPUTE_STACK_SUM(self);
 
+#define TIMESTAMP 1
 #if defined(__arm__)
     if (method->sandbox) {
+#if TIMESTAMP
+        struct timeval start;
+        gettimeofday(&start, NULL);
+#endif
+
         /* copy argments to the sandbox */
         void* stack = alloc_stack();
         void** argv = (void**)stack;
@@ -1288,9 +1293,6 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
             new_tls[i] = NULL;
         }
         *(void**)((unsigned long)new_tls-sizeof(void*)) = old_tls;
-        ALOGE("[sandbox] new_tls[-1]=%p, old_tls=%p",
-                *(void**)((unsigned long)new_tls-sizeof(void*)), old_tls);
-        ALOGE("[sandbox] self=%p at %d", dvmThreadSelf(), __LINE__);
         new_tls[0] = new_tls;
         new_tls[1] = (void*)((unsigned long)stack+2*PAGESIZE);
         memcpy(new_tls[1], old_tls[1], 576);
@@ -1302,7 +1304,6 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 "svc #0\n" \
                 "pop {r0, r7}\n" \
                 : : [tls] "r" (arg));
-        ALOGE("[sandbox] self=%p at %d", dvmThreadSelf(), __LINE__);
         __set_tls(new_tls);
 
         asm volatile(
@@ -1315,12 +1316,23 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 : : [ptr] "r" (method->sandbox), [new_sp] "r" (stack));
 
         __set_tls(old_tls);
-        ALOGE("[sandbox] self=%p at %d", dvmThreadSelf(), __LINE__);
 
         void** argv_ = (void**)stack;
         if (argv_[7])
             memcpy(argv[8], argv_[7], sizeof(JValue));
         free_stack(stack);
+
+#if TIMESTAMP
+        struct timeval now;
+        gettimeofday(&now, NULL);
+        if (now.tv_usec < start.tv_usec) {
+            now.tv_usec = now.tv_usec + 1000000;
+            --now.tv_sec;
+        }
+        now.tv_usec -= start.tv_usec;
+        now.tv_sec -= start.tv_sec;
+        ALOGE("[sandbox] %s run time = %ld.%06ld", method->name, now.tv_sec, now.tv_usec);
+#endif
     } else {
         dvmPlatformInvoke(env,
                 (ClassObject*) staticMethodClass,
