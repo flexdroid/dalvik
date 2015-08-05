@@ -1094,7 +1094,7 @@ static inline void convertReferenceResult(JNIEnv* env, JValue* pResult,
 
 #if defined(__arm__)
 #define SECTION_SIZE (1<<20)
-#define STACK_SIZE (4*SECTION_SIZE)
+#define STACK_SIZE (1*SECTION_SIZE)
 #define NUM_STACK 32
 #define MODULAR(ptr, size) ((unsigned long)(ptr) % size)
 #define ROUND_UP(ptr, size) \
@@ -1108,13 +1108,13 @@ static void* alloc_stack(void) {
     unsigned long i;
     if (!ut_stack_base) {
         void* base = mmap(NULL, NUM_STACK*STACK_SIZE,
-                PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+                PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
         if (base == MAP_FAILED)
             ALOGE("[sandbox] stack mmap fail!!");
         ut_stack_base = (void*)ROUND_UP(base, SECTION_SIZE);
         if (base < ut_stack_base)
             munmap(base, (unsigned long)ut_stack_base - (unsigned long)base);
-        for (i = 0; i < 127; ++i) {
+        for (i = 0; i < 31; ++i) {
             *(int *)((unsigned long)ut_stack_base + i*SECTION_SIZE) = 3;
         }
         for (i = 0; i < NUM_STACK; ++i) {
@@ -1123,7 +1123,7 @@ static void* alloc_stack(void) {
         asm volatile(
                 "push {r0, r7}\n"
                 "mov r0, %[base]\n"
-                "mov r1, #127\n"
+                "mov r1, #31\n"
                 "ldr r7, =0x17e\n"
                 "svc #0\n"
                 "pop {r0, r7}\n"

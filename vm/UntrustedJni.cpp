@@ -34,8 +34,8 @@
 #include <sys/mman.h>
 
 #define SECTION_SIZE (1<<20)
-#define HEAP_SIZE (128*SECTION_SIZE)
-#define READ_HEAP_SECTIONS 127
+#define HEAP_SIZE (256*SECTION_SIZE)
+#define READ_HEAP_SECTIONS 255
 #define MODULAR(ptr, size) ((unsigned long)(ptr) % size)
 #define ROUND_UP(ptr, size) \
     (MODULAR(ptr, size) ? \
