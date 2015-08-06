@@ -829,10 +829,10 @@ static void* UT_GetPrimitiveArrayCritical(JNIEnv* env, jarray jarr, jboolean* is
     }
     void* buf = NULL;
     if (len) {
-        buf = malloc(sizeof(void*)*len);
+        buf = malloc(8*len);
         void* ret = gEnv->GetPrimitiveArrayCritical(jarr, isCopy);
         set_fake_ptr(buf, ret);
-        memcpy(buf, ret, sizeof(void*)*len);
+        memcpy(buf, ret, 8*len);
     }
     jump_in(tls);
     return buf;

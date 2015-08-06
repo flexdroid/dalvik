@@ -46,6 +46,57 @@ static void (*ut_init_malloc) ( void* , size_t ) = NULL;
 static void* (*ut_malloc) ( size_t ) = NULL;
 
 static void* heap = NULL;
+
+static void* env_cpy(const char** envp) {
+    const char** p = envp;
+    size_t envs = 0;
+    while (*p++) ++envs;
+    char* env = (char*)&((char**)heap)[envs+1];
+    p = envp;
+    envs = 0;
+    while (*p) {
+        ((char**)heap)[envs] = env;
+        const char* str = *p;
+        while(*str) *env++ = *str++;
+        *env++ = '\0';
+        ++p;
+        ++envs;
+    }
+    ((char**)heap)[envs] = NULL;
+    return (void*)env;
+}
+
+struct aux {
+    unsigned long type;
+    unsigned long value;
+};
+
+static void setup_sys_env(void* f1, void* f2) {
+    void* handle = dlopen("libc.so\0", RTLD_LAZY);
+    const char** (*ut_get_envp)(void) =
+        (const char** (*)(void)) dlsym(handle, "ut_get_envp\0");
+    const aux* (*ut_get_auxv)(void) =
+        (const aux* (*)(void)) dlsym(handle, "ut_get_auxv\0");
+
+    const char** envp = ut_get_envp();
+    aux* heap_ = (aux*)env_cpy(envp);
+    const aux* auxv = ut_get_auxv();
+
+    void (*ut_set_envp)(char**) = (void (*)(char**))f1;
+    ut_set_envp((char**)heap);
+
+    void (*ut_set_auxv)(void*) = (void (*)(void*))f2;
+    ut_set_auxv((void*)heap_);
+
+    // copy auxv
+    for (const aux* v = auxv; v->type != 0; ++v) {
+        heap_->type = v->type;
+        heap_->value = v->value;
+        ++heap_;
+    }
+    heap = (void*)ROUND_UP(heap_, PAGESIZE);
+}
+
 static void __utm_init(void) {
     if (utm_handle) return;
 
@@ -65,16 +116,20 @@ static void __utm_init(void) {
     }
 
     // ALOGE("[sandbox] ut_malloc=%p at %d", ut_malloc, __LINE__);
-    ut_init_malloc(heap, READ_HEAP_SECTIONS*SECTION_SIZE);
 
     asm volatile(
             "push {r0, r1, r7}\n"
             "mov r0, %[base]\n"
-            "mov r1, 127\n"
+            "mov r1, 255\n"
             "ldr r7, =0x17e\n"
             "svc #0\n"
             "pop {r0, r1, r7}\n"
             : : [base] "r" (heap));
+
+    setup_sys_env(dlsym(utm_handle, "ut_set_envp\0"),
+            dlsym(utm_handle, "ut_set_auxv\0"));
+
+    ut_init_malloc(heap, READ_HEAP_SECTIONS*SECTION_SIZE);
 }
 
 void dvmUntrustedInit(void) {
