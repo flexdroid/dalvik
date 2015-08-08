@@ -162,7 +162,9 @@ JNIEnv* dvmGetUntrustedEnv(JNIEnv* env) {
     if (!jnienv_handle) {
         gUntrustedEnv = __jnienv_init();
     }
-    set_jnienv(env);
+    if (env) {
+        set_jnienv(env);
+    }
     return gUntrustedEnv;
 }
 #endif

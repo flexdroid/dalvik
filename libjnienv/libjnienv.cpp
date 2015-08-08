@@ -57,8 +57,9 @@ std::map<void*, JNIEnv*> env_map;
 std::map<void*, void*> fake_ptr;
 #define set_fake_ptr(a, b) \
     fake_ptr[(void*)(a)] = (void*)(b)
-#define get_real_ptr(type, a, b) \
-    type a = (type)fake_ptr[(void*)(b)]
+#define release_fake_ptr(type, a, b) \
+    type a = (type)fake_ptr[(void*)(b)]; \
+    fake_ptr.erase((void*)(b))
 
 /*
  * ===========================================================================
@@ -605,7 +606,7 @@ static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCop
 static void UT_ReleaseStringChars(JNIEnv* env, jstring jstr, const jchar* chars) {
     if (!chars) return;
     void** tls = jump_out();
-    get_real_ptr(const jchar*, str, chars);
+    release_fake_ptr(const jchar*, str, chars);
     gEnv->ReleaseStringChars(jstr, str);
     jump_in(tls);
     free((void*) chars);
@@ -646,7 +647,7 @@ static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isC
 static void UT_ReleaseStringUTFChars(JNIEnv* env, jstring jstr, const char* utf) {
     if (!utf) return;
     void** tls = jump_out();
-    get_real_ptr(const char*, str, utf);
+    release_fake_ptr(const char*, str, utf);
     gEnv->ReleaseStringUTFChars(jstr, str);
     jump_in(tls);
     free((char*) utf);
@@ -724,7 +725,7 @@ static     void UT_Release##_jname##ArrayElements(JNIEnv* env,                 \
     {                                                                       \
         if (!elems) return; \
         void** tls = jump_out(); \
-        get_real_ptr(_ctype *, data, elems); \
+        release_fake_ptr(_ctype *, data, elems); \
         gEnv->Release##_jname##ArrayElements(jarr, data, mode); \
         jump_in(tls); \
         free((void*) elems); \
@@ -841,7 +842,7 @@ static void* UT_GetPrimitiveArrayCritical(JNIEnv* env, jarray jarr, jboolean* is
 static void UT_ReleasePrimitiveArrayCritical(JNIEnv* env, jarray jarr, void* carray, jint mode) {
     if (!carray) return;
     void** tls = jump_out();
-    get_real_ptr(void*, __arr, carray);
+    release_fake_ptr(void*, __arr, carray);
     gEnv->ReleasePrimitiveArrayCritical(jarr, __arr, mode);
     jump_in(tls);
     free(carray);
@@ -868,7 +869,7 @@ static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* is
 static void UT_ReleaseStringCritical(JNIEnv* env, jstring jstr, const jchar* carray) {
     if (!carray) return;
     void** tls = jump_out();
-    get_real_ptr(const jchar*, str, carray);
+    release_fake_ptr(const jchar*, str, carray);
     gEnv->ReleaseStringCritical(jstr, str);
     jump_in(tls);
     free((void*) carray);
