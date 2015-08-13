@@ -594,10 +594,11 @@ static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCop
     }
     jchar* buf = NULL;
     if (len) {
-        buf = (jchar*)malloc(sizeof(jchar) * len);
+        buf = (jchar*)malloc(sizeof(jchar) * (len+1));
         const jchar* str = gEnv->GetStringChars(jstr, isCopy);
         set_fake_ptr(buf, str);
         memcpy(buf, str, sizeof(jchar) * len);
+        buf[len] = '\0';
     }
     jump_in(tls);
     return (const jchar*)buf;
@@ -635,10 +636,11 @@ static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isC
     }
     char* buf = NULL;
     if (len) {
-        buf = (char*)malloc(len);
+        buf = (char*)malloc(len+1);
         const char* str = gEnv->GetStringUTFChars(jstr, isCopy);
         set_fake_ptr(buf, str);
         memcpy(buf, str, len);
+        buf[len] = '\0';
     }
     jump_in(tls);
     return (const char*)buf;
@@ -710,10 +712,11 @@ static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
         } \
         _ctype* data = NULL; \
         if (len) { \
-            data = (_ctype*)malloc(sizeof(_ctype)*len); \
+            data = (_ctype*)malloc(sizeof(_ctype)*(len+1)); \
             _ctype* val = gEnv->Get##_jname##ArrayElements(jarr, isCopy); \
             set_fake_ptr(data, val); \
             memcpy(data, val, sizeof(_ctype)*len); \
+            data[len] = (_ctype)0; \
         } \
         jump_in(tls); \
         return data; \
@@ -857,10 +860,11 @@ static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* is
     }
     jchar* buf = NULL;
     if (len) {
-        buf = (jchar*)malloc(sizeof(jchar) * len);
+        buf = (jchar*)malloc(sizeof(jchar) * (len+1));
         const jchar* ret = gEnv->GetStringCritical(jstr, isCopy);
         set_fake_ptr(buf, ret);
         memcpy(buf, ret, sizeof(jchar) * len);
+        buf[len] = '\0';
     }
     jump_in(tls);
     return (const jchar*)buf;
