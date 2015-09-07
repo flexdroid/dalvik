@@ -130,8 +130,6 @@ static void __utm_init(void) {
             dlsym(utm_handle, "ut_set_auxv\0"));
 
     ut_init_malloc(heap, READ_HEAP_SECTIONS*SECTION_SIZE);
-
-    dlopen_in_sandbox("_libbinder.so\0", RTLD_LAZY, &addr);
 }
 
 void dvmUntrustedInit(void) {
