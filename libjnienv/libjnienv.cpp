@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <map>
 
+#include "structhelpfunc.h"
 #include "cutils/log.h"
 
 #define __get_tls() \
@@ -25,7 +26,6 @@
     void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
     void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*)); \
     __set_tls(old_tls); \
-    void** tmp = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
     asm volatile( \
             "mov ip, r7\n" \
             "ldr r7, =0x17d\n" \
@@ -34,6 +34,7 @@
             : : ); \
     new_tls; })
 
+/* sys_jump_in */
 #define jump_in(tls) \
     asm volatile( \
             "mov ip, r7\n" \
@@ -43,6 +44,20 @@
             : : ); \
     if(__do_log) ALOGE("%s ----< at %d", __FUNCTION__, __LINE__); \
     __set_tls(tls);
+
+#define jnienv_enter(buf) \
+    ({ if(__do_log) ALOGE("%s ----> at %d", __FUNCTION__, __LINE__); \
+     void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
+     void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*)); \
+     __set_tls(old_tls); \
+     asm volatile( \
+         "push {r0, r7}\n" \
+         "mov r0, %[args]\n" \
+         "ldr r7, =0x17f\n" \
+         "svc #0\n" \
+         "pop {r0, r7}\n" \
+         : : [args] "r" (buf)); \
+     __set_tls(new_tls); })
 
 /*
  * TLS to JNIEnv*
@@ -55,11 +70,19 @@ std::map<void*, JNIEnv*> env_map;
  * native ptr to java ptr
  */
 std::map<void*, void*> fake_ptr;
-#define set_fake_ptr(a, b) \
-    fake_ptr[(void*)(a)] = (void*)(b)
+std::map<void*, size_t> fake_ptr_size;
+#define set_fake_ptr(a, b, size) \
+    fake_ptr[(void*)(a)] = (void*)(b); \
+    fake_ptr_size[(void*)(a)] = size; \
+    memcpy((void*)(a), (void*)(b), size)
 #define release_fake_ptr(type, a, b) \
     type a = (type)fake_ptr[(void*)(b)]; \
-    fake_ptr.erase((void*)(b))
+    fake_ptr.erase((void*)(b)); \
+    memcpy((void*)(a), (void*)(b), fake_ptr_size[(void*)(b)]); \
+    fake_ptr_size.erase((void*)(b)); \
+    free((void*)b)
+
+structhelpfunc_t *pHelper;
 
 /*
  * ===========================================================================
@@ -88,6 +111,21 @@ static jclass UT_FindClass(JNIEnv* env, const char* name) {
     jclass ret = gEnv->FindClass(name);
     jump_in(tls);
     return ret;
+/*
+#define set_arg(type, val) \
+    *(type*)(args+offset) = val; \
+    offset += sizeof(type)
+
+    // marshall
+    char *buf = new char[2*sizeof(unsigned long)+sizeof(JNIEnv*)+sizeof(char*)];
+    unsigned long offset = 0;
+    unsigned long args = (unsigned long)buf;
+    set_arg(unsigned long, (unsigned long)&(gEnv->FindClass) - (unsigned long)gEnv);
+    set_arg(JNIEnv*, gEnv);
+    set_arg(unsigned long, insSize);
+    set_arg(char*, name);
+    jnienv_enter(buf);
+*/
 }
 
 static jclass UT_GetSuperclass(JNIEnv* env, jclass jclazz) {
@@ -587,7 +625,8 @@ static jsize UT_GetStringLength(JNIEnv* env, jstring jstr) {
 
 static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCopy) {
     void** tls = jump_out();
-    jsize len = gEnv->GetStringLength(jstr);
+    JNIEnv* e = gEnv;
+    jsize len = e->GetStringLength(jstr);
     if (!len) {
         jump_in(tls);
         return NULL;
@@ -595,9 +634,8 @@ static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCop
     jchar* buf = NULL;
     if (len) {
         buf = (jchar*)malloc(sizeof(jchar) * (len+1));
-        const jchar* str = gEnv->GetStringChars(jstr, isCopy);
-        set_fake_ptr(buf, str);
-        memcpy(buf, str, sizeof(jchar) * len);
+        const jchar* str = e->GetStringChars(jstr, isCopy);
+        set_fake_ptr(buf, str, sizeof(jchar) * len);
         buf[len] = '\0';
     }
     jump_in(tls);
@@ -607,10 +645,9 @@ static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCop
 static void UT_ReleaseStringChars(JNIEnv* env, jstring jstr, const jchar* chars) {
     if (!chars) return;
     void** tls = jump_out();
-    release_fake_ptr(const jchar*, str, chars);
+    release_fake_ptr(jchar*, str, chars);
     gEnv->ReleaseStringChars(jstr, str);
     jump_in(tls);
-    free((void*) chars);
 }
 
 static jstring UT_NewStringUTF(JNIEnv* env, const char* bytes) {
@@ -629,7 +666,8 @@ static jsize UT_GetStringUTFLength(JNIEnv* env, jstring jstr) {
 
 static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isCopy) {
     void** tls = jump_out();
-    jsize len = gEnv->GetStringUTFLength(jstr);
+    JNIEnv* e = gEnv;
+    jsize len = e->GetStringUTFLength(jstr);
     if (!len) {
         jump_in(tls);
         return NULL;
@@ -637,9 +675,8 @@ static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isC
     char* buf = NULL;
     if (len) {
         buf = (char*)malloc(len+1);
-        const char* str = gEnv->GetStringUTFChars(jstr, isCopy);
-        set_fake_ptr(buf, str);
-        memcpy(buf, str, len);
+        const char* str = e->GetStringUTFChars(jstr, isCopy);
+        set_fake_ptr(buf, str, len);
         buf[len] = '\0';
     }
     jump_in(tls);
@@ -652,7 +689,6 @@ static void UT_ReleaseStringUTFChars(JNIEnv* env, jstring jstr, const char* utf)
     release_fake_ptr(const char*, str, utf);
     gEnv->ReleaseStringUTFChars(jstr, str);
     jump_in(tls);
-    free((char*) utf);
 }
 
 static jsize UT_GetArrayLength(JNIEnv* env, jarray jarr) {
@@ -714,8 +750,7 @@ static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
         if (len) { \
             data = (_ctype*)malloc(sizeof(_ctype)*(len+1)); \
             _ctype* val = gEnv->Get##_jname##ArrayElements(jarr, isCopy); \
-            set_fake_ptr(data, val); \
-            memcpy(data, val, sizeof(_ctype)*len); \
+            set_fake_ptr(data, val, sizeof(_ctype)*len); \
             data[len] = (_ctype)0; \
         } \
         jump_in(tls); \
@@ -731,7 +766,6 @@ static     void UT_Release##_jname##ArrayElements(JNIEnv* env,                 \
         release_fake_ptr(_ctype *, data, elems); \
         gEnv->Release##_jname##ArrayElements(jarr, data, mode); \
         jump_in(tls); \
-        free((void*) elems); \
     }
 
 #define GET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
@@ -823,20 +857,44 @@ static void UT_GetStringUTFRegion(JNIEnv* env, jstring jstr, jsize start, jsize 
     jump_in(tls);
 }
 
-//TODO
 static void* UT_GetPrimitiveArrayCritical(JNIEnv* env, jarray jarr, jboolean* isCopy) {
     void** tls = jump_out();
-    jsize len = gEnv->GetArrayLength(jarr);
+    JNIEnv* e = gEnv;
+    jsize len = e->GetArrayLength(jarr);
     if (!len) {
         jump_in(tls);
         return NULL;
     }
+    size_t width = 0;
+    char type = (pHelper->GetObjectName(e, jarr))[1];
+    switch (type) {
+        case 'I': width = 4; break;
+        case 'C': width = 2; break;
+        case 'B': width = 1; break;
+        case 'Z': width = 1; /* special-case this? */ break;
+        case 'F': width = 4; break;
+        case 'D': width = 8; break;
+        case 'S': width = 2; break;
+        case 'J': width = 8; break;
+        default: width = 8; break;
+    }
     void* buf = NULL;
     if (len) {
-        buf = malloc(8*len);
-        void* ret = gEnv->GetPrimitiveArrayCritical(jarr, isCopy);
-        set_fake_ptr(buf, ret);
-        memcpy(buf, ret, 8*len);
+        buf = malloc(width*(len+1));
+        if (buf == NULL) {
+            ALOGE("buf is null");
+            jump_in(tls);
+            return NULL;
+        }
+        void* ret = e->GetPrimitiveArrayCritical(jarr, isCopy);
+        if (ret == NULL) {
+            ALOGE("ret is null");
+            free(buf);
+            jump_in(tls);
+            return NULL;
+        }
+        set_fake_ptr(buf, ret, width*len);
+        memset((void*)((unsigned long)buf+(unsigned long)(width*len)), 0, width);
     }
     jump_in(tls);
     return buf;
@@ -848,12 +906,12 @@ static void UT_ReleasePrimitiveArrayCritical(JNIEnv* env, jarray jarr, void* car
     release_fake_ptr(void*, __arr, carray);
     gEnv->ReleasePrimitiveArrayCritical(jarr, __arr, mode);
     jump_in(tls);
-    free(carray);
 }
 
 static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* isCopy) {
     void** tls = jump_out();
-    jsize len = gEnv->GetStringLength(jstr);
+    JNIEnv* e = gEnv;
+    jsize len = e->GetStringLength(jstr);
     if (!len) {
         jump_in(tls);
         return NULL;
@@ -861,9 +919,8 @@ static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* is
     jchar* buf = NULL;
     if (len) {
         buf = (jchar*)malloc(sizeof(jchar) * (len+1));
-        const jchar* ret = gEnv->GetStringCritical(jstr, isCopy);
-        set_fake_ptr(buf, ret);
-        memcpy(buf, ret, sizeof(jchar) * len);
+        const jchar* ret = e->GetStringCritical(jstr, isCopy);
+        set_fake_ptr(buf, ret, sizeof(jchar) * len);
         buf[len] = '\0';
     }
     jump_in(tls);
@@ -876,7 +933,6 @@ static void UT_ReleaseStringCritical(JNIEnv* env, jstring jstr, const jchar* car
     release_fake_ptr(const jchar*, str, carray);
     gEnv->ReleaseStringCritical(jstr, str);
     jump_in(tls);
-    free((void*) carray);
 }
 
 static jweak UT_NewWeakGlobalRef(JNIEnv* env, jobject jobj) {
@@ -1210,8 +1266,9 @@ static const struct JNINativeInterface gBridgeInterface = {
 };
 
 static JNIEnv gBridgeEnv;
-extern "C" JNIEnv* init_libjnienv(void) {
+extern "C" JNIEnv* init_libjnienv(structhelpfunc_t *h) {
     gBridgeEnv.functions = &gBridgeInterface;
+    pHelper = h;
     return &gBridgeEnv;
 }
 

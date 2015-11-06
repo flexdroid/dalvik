@@ -33,6 +33,34 @@
 #if defined(__arm__)
 #include <sys/mman.h>
 
+#include "../libjnienv/structhelpfunc.h"
+
+//--------------------
+#define get_arg(type, name) \
+    type name = *(type*)(args+offset); \
+    offset += sizeof(type)
+///*
+// * 1. unmashall data
+// * 2. call java api using FFI
+// *
+// * args = api number, jnienv, insSize, shorty, argv
+// */
+//void java_api_caller(unsigned long args) {
+//    unsigned long offset = 0;
+//    // unsigned long api = ((unsigned long*)args)[0];
+//    get_arg(unsigned long, api);
+//    get_arg(JNIEnv*, env);
+//    get_arg(unsigned long, insSize);
+//
+//    JValue result;
+//    dvmPlatformInvoke((void*)env, NULL, 0, (int)insSize,
+//            /* argv */ (const char*)(args+offset),
+//            /* shorty */ (const u4*)(args+offset+insSize*sizeof(u4)),
+//            /* func */ (void*)*(unsigned long *)((unsigned long)env+api),
+//            &result);
+//}
+//--------------------
+
 #define SECTION_SIZE (1<<20)
 #define HEAP_SIZE (256*SECTION_SIZE)
 #define READ_HEAP_SECTIONS 255
@@ -140,21 +168,25 @@ void dvmUntrustedInit(void) {
     }
 }
 
+static const structhelpfunc_t helper = {
+    dvmGetObjectName,
+};
 static void* jnienv_handle = NULL;
-static JNIEnv* (*init_libjnienv)(void) = NULL;
+static JNIEnv* (*init_libjnienv)(structhelpfunc_t*) = NULL;
 static void (*set_jnienv)(JNIEnv*) = NULL;
 static JNIEnv* __jnienv_init(void) {
     void* addr = NULL;
     jnienv_handle = dlopen_in_sandbox("libjnienv.so\0", RTLD_LAZY, &addr);
     if (!jnienv_handle)
         ALOGE("[sandbox] jnienv_handle is null at %d", __LINE__);
-    init_libjnienv = (JNIEnv* (*)(void)) dlsym_in_sandbox(jnienv_handle, "init_libjnienv\0");
+    init_libjnienv = (JNIEnv* (*)(structhelpfunc_t*))
+        dlsym_in_sandbox(jnienv_handle, "init_libjnienv\0");
     if (!init_libjnienv)
         ALOGE("[sandbox] init_libjnienv is null at %d", __LINE__);
     set_jnienv = (void (*)(JNIEnv*)) dlsym_in_sandbox(jnienv_handle, "set_jnienv\0");
     if (!set_jnienv)
         ALOGE("[sandbox] set_jnienv is null at %d", __LINE__);
-    return init_libjnienv();
+    return init_libjnienv((structhelpfunc_t*)&helper);
 }
 
 static JNIEnv* gUntrustedEnv = NULL;

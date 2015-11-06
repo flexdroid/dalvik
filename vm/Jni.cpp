@@ -371,6 +371,12 @@ Object* dvmDecodeIndirectRef(Thread* self, jobject jobj) {
     }
 }
 
+/* jaebaek: get the name of object */
+const char* dvmGetObjectName(JNIEnv *env, jobject obj) {
+    ScopedJniThreadState ts(env);
+    return dvmDecodeIndirectRef(ts.self(), obj)->clazz->descriptor;
+}
+
 static void AddLocalReferenceFailure(IndirectRefTable* pRefTable) {
     pRefTable->dump("JNI local");
     ALOGE("Failed adding to JNI local ref table (has %zd entries)", pRefTable->capacity());
@@ -1210,6 +1216,12 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
 #define TIMESTAMP 1
 #if defined(__arm__)
     if (method->sandbox) {
+        /*
+        ALOGE("[ffi_test] %s ( %s )", method->name, method->shorty);
+        ALOGE("[ffi_test] insSize=%d, argInfo=%d, idx=%d",
+                method->insSize, method->jniArgInfo, idx);
+        ALOGE("[ffi_test] staticMethodClass=%p", staticMethodClass);
+        */
 #if TIMESTAMP
         struct timeval start;
         gettimeofday(&start, NULL);
