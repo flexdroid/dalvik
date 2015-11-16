@@ -474,6 +474,21 @@ CALL_VIRTUAL(jfloat, Float);
 CALL_VIRTUAL(jdouble, Double);
 CALL_VIRTUAL_VOID;
 
+static jobject UT_CallObjectMethodV2(JNIEnv* env, jobject jobj,
+        jmethodID methodID, va_list args)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =200\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            : : );
+    jobject ret;
+    asm volatile( "mov %0, r0\n" : "=r" (ret): );
+    ALOGE("ret = %p at %s, %d", ret, __FUNCTION__, __LINE__);
+    return ret;
+}
+
 #define CALL_NONVIRTUAL(_ctype, _jname)                                     \
 static     _ctype UT_CallNonvirtual##_jname##Method(JNIEnv* env, jobject jobj, \
         jclass jclazz, jmethodID methodID, ...)                             \
@@ -1039,7 +1054,7 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_GetMethodID,
 
     UT_CallObjectMethod,
-    UT_CallObjectMethodV,
+    UT_CallObjectMethodV2,
     UT_CallObjectMethodA,
     UT_CallBooleanMethod,
     UT_CallBooleanMethodV,

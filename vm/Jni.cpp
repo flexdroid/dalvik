@@ -1317,6 +1317,7 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
                 "pop {r0, r7}\n" \
                 : : [tls] "r" (arg));
         __set_tls(new_tls);
+        ALOGE("method->name = %s in %s:%d", ((Method*)method)->name, __FILE__, __LINE__);
 
         asm volatile(
                 "push {r0, r1, r7}\n"

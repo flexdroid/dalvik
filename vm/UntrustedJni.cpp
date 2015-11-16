@@ -168,6 +168,56 @@ void dvmUntrustedInit(void) {
     }
 }
 
+#define __get_tls() \
+        ({ register unsigned int __val; \
+         asm ("mrc p15, 0, %0, c13, c0, 3" : "=r"(__val)); \
+         (volatile void*) __val; })
+
+#define __set_tls(arg) \
+        asm volatile( "push {r0, r7}\n" \
+                "mov r0, %[tls]\n" \
+                "ldr r7, =0x000f0005\n" \
+                "svc #0\n" \
+                "pop {r0, r7}\n" \
+                : : [tls] "r" (arg));
+
+#define __do_log 0
+
+#define jump_out() \
+    ({ if(__do_log) ALOGE("%s ----> at %d", __FUNCTION__, __LINE__); \
+    void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
+    void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*)); \
+    __set_tls(old_tls); \
+    new_tls; })
+
+/* sys_jump_in */
+#define jump_in(tls, ret) \
+    if(__do_log) ALOGE("%s ----< at %d", __FUNCTION__, __LINE__); \
+    __set_tls(tls); \
+    asm volatile( \
+            "mov r0, %0\n" \
+            "ldr r7, =384\n" \
+            "svc #0\n" \
+            : : "r" (ret))
+
+/*
+ * TLS to JNIEnv*
+ */
+std::map<void*, JNIEnv*> env_map;
+#define gEnv \
+    env_map[const_cast<void*>(__get_tls())]
+
+static jobject UT_CallObjectMethodV(JNIEnv* env, jobject jobj,
+        jmethodID methodID, va_list args)
+{
+    void** tls = jump_out();
+    jobject ret = gEnv->CallObjectMethodV(jobj, methodID, args);
+    ALOGE("ret = %p at %s, %d", ret, __FUNCTION__, __LINE__);
+    jump_in(tls, ret);
+    /* not reached */
+    return ret;
+}
+
 static const structhelpfunc_t helper = {
     dvmGetObjectName,
 };
@@ -186,6 +236,14 @@ static JNIEnv* __jnienv_init(void) {
     set_jnienv = (void (*)(JNIEnv*)) dlsym_in_sandbox(jnienv_handle, "set_jnienv\0");
     if (!set_jnienv)
         ALOGE("[sandbox] set_jnienv is null at %d", __LINE__);
+
+    asm volatile( "push {r0, r7}\n"
+            "mov r0, %[func]\n"
+            "ldr r7, =385\n"
+            "svc #0\n"
+            "pop {r0, r7}\n"
+            : : [func] "r" (UT_CallObjectMethodV));
+
     return init_libjnienv((structhelpfunc_t*)&helper);
 }
 
@@ -196,6 +254,7 @@ JNIEnv* dvmGetUntrustedEnv(JNIEnv* env) {
     }
     if (env) {
         set_jnienv(env);
+        gEnv = env;
     }
     return gUntrustedEnv;
 }
