@@ -6,999 +6,3407 @@
 #include "structhelpfunc.h"
 #include "cutils/log.h"
 
-#define __get_tls() \
-        ({ register unsigned int __val; \
-         asm ("mrc p15, 0, %0, c13, c0, 3" : "=r"(__val)); \
-         (volatile void*) __val; })
+static jobject
+UT_NewObjectV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jobject
+UT_CallObjectMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jboolean
+UT_CallBooleanMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jbyte
+UT_CallByteMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jchar
+UT_CallCharMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jshort
+UT_CallShortMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jint
+UT_CallIntMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jlong
+UT_CallLongMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jfloat
+UT_CallFloatMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jdouble
+UT_CallDoubleMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static void
+UT_CallVoidMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3);
+static jobject
+UT_CallNonvirtualObjectMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jboolean
+UT_CallNonvirtualBooleanMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jbyte
+UT_CallNonvirtualByteMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jchar
+UT_CallNonvirtualCharMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jshort
+UT_CallNonvirtualShortMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jint
+UT_CallNonvirtualIntMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jlong
+UT_CallNonvirtualLongMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jfloat
+UT_CallNonvirtualFloatMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jdouble
+UT_CallNonvirtualDoubleMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static void
+UT_CallNonvirtualVoidMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4);
+static jobject
+UT_CallStaticObjectMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jboolean
+UT_CallStaticBooleanMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jbyte
+UT_CallStaticByteMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jchar
+UT_CallStaticCharMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jshort
+UT_CallStaticShortMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jint
+UT_CallStaticIntMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jlong
+UT_CallStaticLongMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jfloat
+UT_CallStaticFloatMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static jdouble
+UT_CallStaticDoubleMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
+static void
+UT_CallStaticVoidMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3);
 
-#define __set_tls(arg) \
-        asm volatile( "push {r0, r7}\n" \
-                "mov r0, %[tls]\n" \
-                "ldr r7, =0x000f0005\n" \
-                "svc #0\n" \
-                "pop {r0, r7}\n" \
-                : : [tls] "r" (arg));
-
-#define __do_log 0
-
-#define jump_out() \
-    ({ if(__do_log) ALOGE("%s ----> at %d", __FUNCTION__, __LINE__); \
-    void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
-    void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*)); \
-    __set_tls(old_tls); \
-    asm volatile( \
-            "mov ip, r7\n" \
-            "ldr r7, =0x17d\n" \
-            "svc #0\n" \
-            "mov r7, ip\n" \
-            : : ); \
-    new_tls; })
-
-/* sys_jump_in */
-#define jump_in(tls) \
-    asm volatile( \
-            "mov ip, r7\n" \
-            "ldr r7, =0x17c\n" \
-            "svc #0\n" \
-            "mov r7, ip\n" \
-            : : ); \
-    if(__do_log) ALOGE("%s ----< at %d", __FUNCTION__, __LINE__); \
-    __set_tls(tls);
-
-#define jnienv_enter(buf) \
-    ({ if(__do_log) ALOGE("%s ----> at %d", __FUNCTION__, __LINE__); \
-     void** new_tls = reinterpret_cast<void**>(const_cast<void*>(__get_tls())); \
-     void* old_tls = *(void**)((unsigned long)new_tls-sizeof(void*)); \
-     __set_tls(old_tls); \
-     asm volatile( \
-         "push {r0, r7}\n" \
-         "mov r0, %[args]\n" \
-         "ldr r7, =0x17f\n" \
-         "svc #0\n" \
-         "pop {r0, r7}\n" \
-         : : [args] "r" (buf)); \
-     __set_tls(new_tls); })
-
-/*
- * TLS to JNIEnv*
- */
-std::map<void*, JNIEnv*> env_map;
-#define gEnv \
-    env_map[const_cast<void*>(__get_tls())]
-
-/*
- * native ptr to java ptr
- */
-std::map<void*, void*> fake_ptr;
-std::map<void*, size_t> fake_ptr_size;
-#define set_fake_ptr(a, b, size) \
-    fake_ptr[(void*)(a)] = (void*)(b); \
-    fake_ptr_size[(void*)(a)] = size; \
-    memcpy((void*)(a), (void*)(b), size)
-#define release_fake_ptr(type, a, b) \
-    type a = (type)fake_ptr[(void*)(b)]; \
-    fake_ptr.erase((void*)(b)); \
-    memcpy((void*)(a), (void*)(b), fake_ptr_size[(void*)(b)]); \
-    fake_ptr_size.erase((void*)(b)); \
-    free((void*)b)
-
-structhelpfunc_t *pHelper;
-
-/*
- * ===========================================================================
- *      JNI implementation
- * ===========================================================================
- */
-
-static jint UT_GetVersion(JNIEnv* env) {
-    void** tls = jump_out();
-    jint ret = gEnv->GetVersion();
-    jump_in(tls);
-    return ret;
-}
-
-static jclass UT_DefineClass(JNIEnv* env, const char *name, jobject loader,
-    const jbyte* buf, jsize bufLen)
+static jint
+UT_GetVersion
+(JNIEnv * a0)
 {
-    void** tls = jump_out();
-    jclass ret = gEnv->DefineClass(name, loader, buf, bufLen);
-    jump_in(tls);
-    return ret;
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =0\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jclass UT_FindClass(JNIEnv* env, const char* name) {
-    void** tls = jump_out();
-    jclass ret = gEnv->FindClass(name);
-    jump_in(tls);
-    return ret;
-/*
-#define set_arg(type, val) \
-    *(type*)(args+offset) = val; \
-    offset += sizeof(type)
-
-    // marshall
-    char *buf = new char[2*sizeof(unsigned long)+sizeof(JNIEnv*)+sizeof(char*)];
-    unsigned long offset = 0;
-    unsigned long args = (unsigned long)buf;
-    set_arg(unsigned long, (unsigned long)&(gEnv->FindClass) - (unsigned long)gEnv);
-    set_arg(JNIEnv*, gEnv);
-    set_arg(unsigned long, insSize);
-    set_arg(char*, name);
-    jnienv_enter(buf);
-*/
+static jclass
+UT_DefineClass
+(JNIEnv* a0, const char* a1, jobject a2, const jbyte* a3, jsize a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =1\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jclass UT_GetSuperclass(JNIEnv* env, jclass jclazz) {
-    void** tls = jump_out();
-    jclass ret = gEnv->GetSuperclass(jclazz);
-    jump_in(tls);
-    return ret;
+static jclass
+UT_FindClass
+(JNIEnv* a0, const char* a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =2\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jboolean UT_IsAssignableFrom(JNIEnv* env, jclass jclazz1, jclass jclazz2) {
-    void** tls = jump_out();
-    jboolean ret = gEnv->IsAssignableFrom(jclazz1, jclazz2);
-    jump_in(tls);
-    return ret;
+static jmethodID
+UT_FromReflectedMethod
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =3\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jmethodID UT_FromReflectedMethod(JNIEnv* env, jobject jmethod) {
-    void** tls = jump_out();
-    jmethodID ret = gEnv->FromReflectedMethod(jmethod);
-    jump_in(tls);
-    return ret;
+static jfieldID
+UT_FromReflectedField
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =4\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jfieldID UT_FromReflectedField(JNIEnv* env, jobject jfield) {
-    void** tls = jump_out();
-    jfieldID ret = gEnv->FromReflectedField(jfield);
-    jump_in(tls);
-    return ret;
+static jobject
+UT_ToReflectedMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, jboolean a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =5\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobject UT_ToReflectedMethod(JNIEnv* env, jclass jcls, jmethodID methodID, jboolean isStatic) {
-    void** tls = jump_out();
-    jobject ret = gEnv->ToReflectedMethod(jcls, methodID, isStatic);
-    jump_in(tls);
-    return ret;
+static jclass
+UT_GetSuperclass
+(JNIEnv* a0, jclass a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =6\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobject UT_ToReflectedField(JNIEnv* env, jclass jcls, jfieldID fieldID, jboolean isStatic) {
-    void** tls = jump_out();
-    jobject ret = gEnv->ToReflectedField(jcls, fieldID, isStatic);
-    jump_in(tls);
-    return ret;
+static jboolean
+UT_IsAssignableFrom
+(JNIEnv* a0, jclass a1, jclass a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =7\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jint UT_Throw(JNIEnv* env, jthrowable jobj) {
-    void** tls = jump_out();
-    jint ret = gEnv->Throw(jobj);
-    jump_in(tls);
-    return ret;
+static jobject
+UT_ToReflectedField
+(JNIEnv* a0, jclass a1, jfieldID a2, jboolean a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =8\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jint UT_ThrowNew(JNIEnv* env, jclass jcls, const char* message) {
-    void** tls = jump_out();
-    jint ret = gEnv->ThrowNew(jcls, message);
-    jump_in(tls);
-    return ret;
+static jint
+UT_Throw
+(JNIEnv* a0, jthrowable a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =9\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jthrowable UT_ExceptionOccurred(JNIEnv* env) {
-    void** tls = jump_out();
-    jthrowable ret = gEnv->ExceptionOccurred();
-    jump_in(tls);
-    return ret;
+static jint
+UT_ThrowNew
+(JNIEnv * a0, jclass a1, const char * a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =10\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static void UT_ExceptionDescribe(JNIEnv* env) {
-    void** tls = jump_out();
-    gEnv->ExceptionDescribe();
-    jump_in(tls);
+static jthrowable
+UT_ExceptionOccurred
+(JNIEnv* a0)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =11\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static void UT_ExceptionClear(JNIEnv* env) {
-    void** tls = jump_out();
-    gEnv->ExceptionClear();
-    jump_in(tls);
+static void
+UT_ExceptionDescribe
+(JNIEnv* a0)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =12\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static void UT_FatalError(JNIEnv* env, const char* msg) {
-    void** tls = jump_out();
-    gEnv->FatalError(msg);
-    jump_in(tls);
+static void
+UT_ExceptionClear
+(JNIEnv* a0)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =13\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jint UT_PushLocalFrame(JNIEnv* env, jint capacity) {
-    void** tls = jump_out();
-    jint ret = gEnv->PushLocalFrame(capacity);
-    jump_in(tls);
-    return ret;
+static void
+UT_FatalError
+(JNIEnv* a0, const char* a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =14\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jobject UT_PopLocalFrame(JNIEnv* env, jobject jresult) {
-    void** tls = jump_out();
-    jobject ret = gEnv->PopLocalFrame(jresult);
-    jump_in(tls);
-    return ret;
+static jint
+UT_PushLocalFrame
+(JNIEnv* a0, jint a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =15\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobject UT_NewGlobalRef(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jobject ret = gEnv->NewGlobalRef(jobj);
-    jump_in(tls);
-    return ret;
+static jobject
+UT_PopLocalFrame
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =16\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static void UT_DeleteGlobalRef(JNIEnv* env, jobject jglobalRef) {
-    void** tls = jump_out();
-    gEnv->DeleteGlobalRef(jglobalRef);
-    jump_in(tls);
+static jobject
+UT_NewGlobalRef
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =17\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobject UT_NewLocalRef(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jobject ret = gEnv->NewLocalRef(jobj);
-    jump_in(tls);
-    return ret;
+static void
+UT_DeleteGlobalRef
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =18\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static void UT_DeleteLocalRef(JNIEnv* env, jobject jlocalRef) {
-    void** tls = jump_out();
-    gEnv->DeleteLocalRef(jlocalRef);
-    jump_in(tls);
+static void
+UT_DeleteLocalRef
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =19\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jint UT_EnsureLocalCapacity(JNIEnv* env, jint capacity) {
-    void** tls = jump_out();
-    jint ret = gEnv->EnsureLocalCapacity(capacity);
-    jump_in(tls);
-    return ret;
+static jboolean
+UT_IsSameObject
+(JNIEnv* a0, jobject a1, jobject a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =20\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jboolean UT_IsSameObject(JNIEnv* env, jobject jref1, jobject jref2) {
-    void** tls = jump_out();
-    jboolean ret = gEnv->IsSameObject(jref1, jref2);
-    jump_in(tls);
-    return ret;
+static jobject
+UT_NewLocalRef
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =21\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobject UT_AllocObject(JNIEnv* env, jclass jcls) {
-    void** tls = jump_out();
-    jobject ret = gEnv->AllocObject(jcls);
-    jump_in(tls);
-    return ret;
+static jint
+UT_EnsureLocalCapacity
+(JNIEnv* a0, jint a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =22\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobject UT_NewObject(JNIEnv* env, jclass jclazz, jmethodID methodID, ...) {
-    void** tls = jump_out();
+static jobject
+UT_AllocObject
+(JNIEnv* a0, jclass a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =23\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_NewObject
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
     va_list args;
-    va_start(args, methodID);
-    jobject ret = gEnv->NewObjectV(jclazz, methodID, args);
+    va_start(args, a2);
+    jobject jobj = UT_NewObjectV(a0, a1, a2, args);
     va_end(args);
-    jump_in(tls);
+    return jobj;
+}
+
+static jobject
+UT_NewObjectV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =25\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_NewObjectA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =26\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jclass
+UT_GetObjectClass
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =27\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_IsInstanceOf
+(JNIEnv* a0, jobject a1, jclass a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =28\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jmethodID
+UT_GetMethodID
+(JNIEnv* a0, jclass a1, const char* a2, const char* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =29\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_CallObjectMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jobject jobj = UT_CallObjectMethodV(a0, a1, a2, args);
+    va_end(args);
+    return jobj;
+}
+
+static jobject
+UT_CallObjectMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =31\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_CallObjectMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =32\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_CallBooleanMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jboolean ret = UT_CallBooleanMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jobject UT_NewObjectV(JNIEnv* env, jclass jclazz, jmethodID methodID, va_list args) {
-    void** tls = jump_out();
-    jobject ret = gEnv->NewObjectV(jclazz, methodID, args);
-    jump_in(tls);
+static jboolean
+UT_CallBooleanMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =34\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_CallBooleanMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =35\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_CallByteMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jbyte ret = UT_CallByteMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jobject UT_NewObjectA(JNIEnv* env, jclass jclazz, jmethodID methodID, jvalue* args) {
-    void** tls = jump_out();
-    jobject ret = gEnv->NewObjectA(jclazz, methodID, args);
-    jump_in(tls);
+static jbyte
+UT_CallByteMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =37\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_CallByteMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =38\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_CallCharMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jchar ret = UT_CallCharMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jclass UT_GetObjectClass(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jclass ret = gEnv->GetObjectClass(jobj);
-    jump_in(tls);
+static jchar
+UT_CallCharMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =40\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_CallCharMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =41\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_CallShortMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jshort ret = UT_CallShortMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jboolean UT_IsInstanceOf(JNIEnv* env, jobject jobj, jclass jclazz) {
-    void** tls = jump_out();
-    jboolean ret = gEnv->IsInstanceOf(jobj, jclazz);
-    jump_in(tls);
+static jshort
+UT_CallShortMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =43\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_CallShortMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =44\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_CallIntMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jint ret = UT_CallIntMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jmethodID UT_GetMethodID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    void** tls = jump_out();
-    jmethodID ret = gEnv->GetMethodID(jclazz, name, sig);
-    jump_in(tls);
+static jint
+UT_CallIntMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =46\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_CallIntMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =47\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_CallLongMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jlong ret = UT_CallLongMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jfieldID UT_GetFieldID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    void** tls = jump_out();
-    jfieldID ret = gEnv->GetFieldID(jclazz, name, sig);
-    jump_in(tls);
+static jlong
+UT_CallLongMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =49\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_CallLongMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =50\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_CallFloatMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jfloat ret = UT_CallFloatMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jmethodID UT_GetStaticMethodID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    void** tls = jump_out();
-    jmethodID ret = gEnv->GetStaticMethodID(jclazz, name, sig);
-    jump_in(tls);
+static jfloat
+UT_CallFloatMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =52\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_CallFloatMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =53\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_CallDoubleMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jdouble ret = UT_CallDoubleMethodV(a0, a1, a2, args);
+    va_end(args);
     return ret;
 }
 
-static jfieldID UT_GetStaticFieldID(JNIEnv* env, jclass jclazz, const char* name, const char* sig) {
-    void** tls = jump_out();
-    jfieldID ret = gEnv->GetStaticFieldID(jclazz, name, sig);
-    jump_in(tls);
+static jdouble
+UT_CallDoubleMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =55\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_CallDoubleMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =56\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_CallVoidMethod
+(JNIEnv* a0, jobject a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    UT_CallVoidMethodV(a0, a1, a2, args);
+    va_end(args);
+}
+
+static void
+UT_CallVoidMethodV
+(JNIEnv* a0, jobject a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =58\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_CallVoidMethodA
+(JNIEnv* a0, jobject a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =59\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jobject
+UT_CallNonvirtualObjectMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jobject ret = UT_CallNonvirtualObjectMethodV(a0, a1, a2, a3, args);
+    va_end(args);
     return ret;
 }
 
-#define GET_STATIC_TYPE_FIELD(_ctype, _jname, _isref)                       \
-    static _ctype UT_GetStatic##_jname##Field(JNIEnv* env, jclass jclazz,   \
-        jfieldID fieldID)                                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype value = gEnv->GetStatic##_jname##Field(jclazz, fieldID); \
-        jump_in(tls);                                                          \
-        return value;                                                       \
-    }
-GET_STATIC_TYPE_FIELD(jobject, Object, true);
-GET_STATIC_TYPE_FIELD(jboolean, Boolean, false);
-GET_STATIC_TYPE_FIELD(jbyte, Byte, false);
-GET_STATIC_TYPE_FIELD(jchar, Char, false);
-GET_STATIC_TYPE_FIELD(jshort, Short, false);
-GET_STATIC_TYPE_FIELD(jint, Int, false);
-GET_STATIC_TYPE_FIELD(jlong, Long, false);
-GET_STATIC_TYPE_FIELD(jfloat, Float, false);
-GET_STATIC_TYPE_FIELD(jdouble, Double, false);
+static jobject
+UT_CallNonvirtualObjectMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =61\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
 
-#define SET_STATIC_TYPE_FIELD(_ctype, _ctype2, _jname, _isref)              \
-static     void UT_SetStatic##_jname##Field(JNIEnv* env, jclass jclazz,        \
-        jfieldID fieldID, _ctype value)                                     \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->SetStatic##_jname##Field(jclazz, fieldID, value);       \
-        jump_in(tls);                                                          \
-    }
-SET_STATIC_TYPE_FIELD(jobject, Object*, Object, true);
-SET_STATIC_TYPE_FIELD(jboolean, bool, Boolean, false);
-SET_STATIC_TYPE_FIELD(jbyte, s1, Byte, false);
-SET_STATIC_TYPE_FIELD(jchar, u2, Char, false);
-SET_STATIC_TYPE_FIELD(jshort, s2, Short, false);
-SET_STATIC_TYPE_FIELD(jint, s4, Int, false);
-SET_STATIC_TYPE_FIELD(jlong, s8, Long, false);
-SET_STATIC_TYPE_FIELD(jfloat, float, Float, false);
-SET_STATIC_TYPE_FIELD(jdouble, double, Double, false);
+static jobject
+UT_CallNonvirtualObjectMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =62\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
 
-#define GET_TYPE_FIELD(_ctype, _jname, _isref)                              \
-static     _ctype UT_Get##_jname##Field(JNIEnv* env, jobject jobj,             \
-        jfieldID fieldID)                                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype value = gEnv->Get##_jname##Field(jobj, fieldID);       \
-        jump_in(tls);                                                          \
-        return value;                                                       \
-    }
-GET_TYPE_FIELD(jobject, Object, true);
-GET_TYPE_FIELD(jboolean, Boolean, false);
-GET_TYPE_FIELD(jbyte, Byte, false);
-GET_TYPE_FIELD(jchar, Char, false);
-GET_TYPE_FIELD(jshort, Short, false);
-GET_TYPE_FIELD(jint, Int, false);
-GET_TYPE_FIELD(jlong, Long, false);
-GET_TYPE_FIELD(jfloat, Float, false);
-GET_TYPE_FIELD(jdouble, Double, false);
+static jboolean
+UT_CallNonvirtualBooleanMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jboolean ret = UT_CallNonvirtualBooleanMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
 
-#define SET_TYPE_FIELD(_ctype, _ctype2, _jname, _isref)                     \
-static     void UT_Set##_jname##Field(JNIEnv* env, jobject jobj,               \
-        jfieldID fieldID, _ctype value)                                     \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->Set##_jname##Field(jobj, fieldID, value);         \
-        jump_in(tls);                                                          \
-    }
-SET_TYPE_FIELD(jobject, Object*, Object, true);
-SET_TYPE_FIELD(jboolean, bool, Boolean, false);
-SET_TYPE_FIELD(jbyte, s1, Byte, false);
-SET_TYPE_FIELD(jchar, u2, Char, false);
-SET_TYPE_FIELD(jshort, s2, Short, false);
-SET_TYPE_FIELD(jint, s4, Int, false);
-SET_TYPE_FIELD(jlong, s8, Long, false);
-SET_TYPE_FIELD(jfloat, float, Float, false);
-SET_TYPE_FIELD(jdouble, double, Double, false);
+static jboolean
+UT_CallNonvirtualBooleanMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =64\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
 
-#define CALL_VIRTUAL(_ctype, _jname)                                        \
-static     _ctype UT_Call##_jname##Method(JNIEnv* env, jobject jobj,           \
-        jmethodID methodID, ...)                                            \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        va_list args; \
-        va_start(args, methodID);                                           \
-        _ctype ret = gEnv->Call##_jname##MethodV(jobj, methodID, args); \
-        va_end(args);                                                       \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }                                                                       \
-static     _ctype UT_Call##_jname##MethodV(JNIEnv* env, jobject jobj,          \
-        jmethodID methodID, va_list args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype ret = gEnv->Call##_jname##MethodV(jobj, methodID, args); \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }                                                                       \
-static     _ctype UT_Call##_jname##MethodA(JNIEnv* env, jobject jobj,          \
-        jmethodID methodID, jvalue* args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype ret = gEnv->Call##_jname##MethodA(jobj, methodID, args); \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }
-#define CALL_VIRTUAL_VOID                                                   \
-static     void UT_CallVoidMethod(JNIEnv* env, jobject jobj,                   \
-        jmethodID methodID, ...)                                            \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        va_list args; \
-        va_start(args, methodID);                                           \
-        gEnv->CallVoidMethodV(jobj, methodID, args); \
-        va_end(args);                                                       \
-        jump_in(tls);                                                          \
-    }                                                                       \
-static     void UT_CallVoidMethodV(JNIEnv* env, jobject jobj,          \
-        jmethodID methodID, va_list args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->CallVoidMethodV(jobj, methodID, args); \
-        jump_in(tls);                                                          \
-    }                                                                       \
-static     void UT_CallVoidMethodA(JNIEnv* env, jobject jobj,          \
-        jmethodID methodID, jvalue* args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->CallVoidMethodA(jobj, methodID, args); \
-        jump_in(tls);                                                          \
-    }
-CALL_VIRTUAL(jobject, Object);
-CALL_VIRTUAL(jboolean, Boolean);
-CALL_VIRTUAL(jbyte, Byte);
-CALL_VIRTUAL(jchar, Char);
-CALL_VIRTUAL(jshort, Short);
-CALL_VIRTUAL(jint, Int);
-CALL_VIRTUAL(jlong, Long);
-CALL_VIRTUAL(jfloat, Float);
-CALL_VIRTUAL(jdouble, Double);
-CALL_VIRTUAL_VOID;
+static jboolean
+UT_CallNonvirtualBooleanMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =65\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
 
-static jobject UT_CallObjectMethodV2(JNIEnv* env, jobject jobj,
-        jmethodID methodID, va_list args)
+static jbyte
+UT_CallNonvirtualByteMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jbyte ret = UT_CallNonvirtualByteMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jbyte
+UT_CallNonvirtualByteMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =67\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_CallNonvirtualByteMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =68\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_CallNonvirtualCharMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jchar ret = UT_CallNonvirtualCharMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jchar
+UT_CallNonvirtualCharMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =70\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_CallNonvirtualCharMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =71\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_CallNonvirtualShortMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jshort ret = UT_CallNonvirtualShortMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jshort
+UT_CallNonvirtualShortMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =73\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_CallNonvirtualShortMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =74\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_CallNonvirtualIntMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jint ret = UT_CallNonvirtualIntMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jint
+UT_CallNonvirtualIntMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =76\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_CallNonvirtualIntMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =77\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_CallNonvirtualLongMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jlong ret = UT_CallNonvirtualLongMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jlong
+UT_CallNonvirtualLongMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =79\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_CallNonvirtualLongMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =80\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_CallNonvirtualFloatMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jfloat ret = UT_CallNonvirtualFloatMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jfloat
+UT_CallNonvirtualFloatMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =82\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_CallNonvirtualFloatMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =83\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_CallNonvirtualDoubleMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    jdouble ret = UT_CallNonvirtualDoubleMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+    return ret;
+}
+
+static jdouble
+UT_CallNonvirtualDoubleMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =85\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_CallNonvirtualDoubleMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =86\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_CallNonvirtualVoidMethod
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, ...)
+{
+    va_list args;
+    va_start(args, a3);
+    UT_CallNonvirtualVoidMethodV(a0, a1, a2, a3, args);
+    va_end(args);
+}
+
+static void
+UT_CallNonvirtualVoidMethodV
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, va_list a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =88\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_CallNonvirtualVoidMethodA
+(JNIEnv* a0, jobject a1, jclass a2, jmethodID a3, jvalue* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =89\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jfieldID
+UT_GetFieldID
+(JNIEnv* a0, jclass a1, const char* a2, const char* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =90\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_GetObjectField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =91\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_GetBooleanField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =92\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_GetByteField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =93\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_GetCharField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =94\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_GetShortField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =95\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_GetIntField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =96\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_GetLongField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =97\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_GetFloatField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =98\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_GetDoubleField
+(JNIEnv* a0, jobject a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =99\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_SetObjectField
+(JNIEnv* a0, jobject a1, jfieldID a2, jobject a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =100\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetBooleanField
+(JNIEnv* a0, jobject a1, jfieldID a2, jboolean a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =101\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetByteField
+(JNIEnv* a0, jobject a1, jfieldID a2, jbyte a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =102\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetCharField
+(JNIEnv* a0, jobject a1, jfieldID a2, jchar a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =103\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetShortField
+(JNIEnv* a0, jobject a1, jfieldID a2, jshort a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =104\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetIntField
+(JNIEnv* a0, jobject a1, jfieldID a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =105\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetLongField
+(JNIEnv* a0, jobject a1, jfieldID a2, jlong a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =106\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetFloatField
+(JNIEnv* a0, jobject a1, jfieldID a2, jfloat a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =107\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetDoubleField
+(JNIEnv* a0, jobject a1, jfieldID a2, jdouble a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =108\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jmethodID
+UT_GetStaticMethodID
+(JNIEnv* a0, jclass a1, const char* a2, const char* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =109\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_CallStaticObjectMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jobject ret = UT_CallStaticObjectMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jobject
+UT_CallStaticObjectMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =111\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_CallStaticObjectMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =112\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_CallStaticBooleanMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jboolean ret = UT_CallStaticBooleanMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jboolean
+UT_CallStaticBooleanMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =114\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_CallStaticBooleanMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =115\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_CallStaticByteMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jbyte ret = UT_CallStaticByteMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jbyte
+UT_CallStaticByteMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =117\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_CallStaticByteMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =118\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_CallStaticCharMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jchar ret = UT_CallStaticCharMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jchar
+UT_CallStaticCharMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =120\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_CallStaticCharMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =121\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_CallStaticShortMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jshort ret = UT_CallStaticShortMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jshort
+UT_CallStaticShortMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =123\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_CallStaticShortMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =124\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_CallStaticIntMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jint ret = UT_CallStaticIntMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jint
+UT_CallStaticIntMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =126\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_CallStaticIntMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =127\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_CallStaticLongMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jlong ret = UT_CallStaticLongMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jlong
+UT_CallStaticLongMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =129\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_CallStaticLongMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =130\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_CallStaticFloatMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jfloat ret = UT_CallStaticFloatMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jfloat
+UT_CallStaticFloatMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =132\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_CallStaticFloatMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =133\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_CallStaticDoubleMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    jdouble ret = UT_CallStaticDoubleMethodV(a0, a1, a2, args);
+    va_end(args);
+    return ret;
+}
+
+static jdouble
+UT_CallStaticDoubleMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =135\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_CallStaticDoubleMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =136\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_CallStaticVoidMethod
+(JNIEnv* a0, jclass a1, jmethodID a2, ...)
+{
+    va_list args;
+    va_start(args, a2);
+    UT_CallStaticVoidMethodV(a0, a1, a2, args);
+    va_end(args);
+}
+
+static void
+UT_CallStaticVoidMethodV
+(JNIEnv* a0, jclass a1, jmethodID a2, va_list a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =138\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_CallStaticVoidMethodA
+(JNIEnv* a0, jclass a1, jmethodID a2, jvalue* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =139\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jfieldID
+UT_GetStaticFieldID
+(JNIEnv* a0, jclass a1, const char* a2, const char* a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =140\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_GetStaticObjectField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =141\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean
+UT_GetStaticBooleanField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =142\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte
+UT_GetStaticByteField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =143\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar
+UT_GetStaticCharField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =144\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort
+UT_GetStaticShortField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =145\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint
+UT_GetStaticIntField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =146\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_GetStaticLongField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =147\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat
+UT_GetStaticFloatField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =148\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble
+UT_GetStaticDoubleField
+(JNIEnv* a0, jclass a1, jfieldID a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =149\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_SetStaticObjectField
+(JNIEnv* a0, jclass a1, jfieldID a2, jobject a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =150\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticBooleanField
+(JNIEnv* a0, jclass a1, jfieldID a2, jboolean a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =151\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticByteField
+(JNIEnv* a0, jclass a1, jfieldID a2, jbyte a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =152\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticCharField
+(JNIEnv* a0, jclass a1, jfieldID a2, jchar a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =153\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticShortField
+(JNIEnv* a0, jclass a1, jfieldID a2, jshort a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =154\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticIntField
+(JNIEnv* a0, jclass a1, jfieldID a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =155\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticLongField
+(JNIEnv* a0, jclass a1, jfieldID a2, jlong a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =156\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticFloatField
+(JNIEnv* a0, jclass a1, jfieldID a2, jfloat a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =157\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_SetStaticDoubleField
+(JNIEnv* a0, jclass a1, jfieldID a2, jdouble a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =158\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jstring
+UT_NewString
+(JNIEnv* a0, const jchar* a1, jsize a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =159\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jsize
+UT_GetStringLength
+(JNIEnv* a0, jstring a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =160\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static const jchar*
+UT_GetStringChars
+(JNIEnv* a0, jstring a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =161\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_ReleaseStringChars
+(JNIEnv* a0, jstring a1, const jchar* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =162\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jstring
+UT_NewStringUTF
+(JNIEnv* a0, const char* a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =163\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jsize
+UT_GetStringUTFLength
+(JNIEnv* a0, jstring a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =164\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static const char*
+UT_GetStringUTFChars
+(JNIEnv* a0, jstring a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =165\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_ReleaseStringUTFChars
+(JNIEnv* a0, jstring a1, const char* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =166\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jsize
+UT_GetArrayLength
+(JNIEnv* a0, jarray a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =167\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobjectArray
+UT_NewObjectArray
+(JNIEnv* a0, jsize a1, jclass a2, jobject a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =168\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_GetObjectArrayElement
+(JNIEnv* a0, jobjectArray a1, jsize a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =169\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_SetObjectArrayElement
+(JNIEnv* a0, jobjectArray a1, jsize a2, jobject a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =170\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jbooleanArray
+UT_NewBooleanArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =171\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyteArray
+UT_NewByteArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =172\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jcharArray
+UT_NewCharArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =173\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshortArray
+UT_NewShortArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =174\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jintArray
+UT_NewIntArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =175\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlongArray
+UT_NewLongArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =176\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloatArray
+UT_NewFloatArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =177\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdoubleArray
+UT_NewDoubleArray
+(JNIEnv* a0, jsize a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =178\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jboolean*
+UT_GetBooleanArrayElements
+(JNIEnv* a0, jbooleanArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =179\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jbyte*
+UT_GetByteArrayElements
+(JNIEnv* a0, jbyteArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =180\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jchar*
+UT_GetCharArrayElements
+(JNIEnv* a0, jcharArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =181\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jshort*
+UT_GetShortArrayElements
+(JNIEnv* a0, jshortArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =182\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jint*
+UT_GetIntArrayElements
+(JNIEnv* a0, jintArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =183\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong*
+UT_GetLongArrayElements
+(JNIEnv* a0, jlongArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =184\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jfloat*
+UT_GetFloatArrayElements
+(JNIEnv* a0, jfloatArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =185\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jdouble*
+UT_GetDoubleArrayElements
+(JNIEnv* a0, jdoubleArray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =186\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_ReleaseBooleanArrayElements
+(JNIEnv* a0, jbooleanArray a1, jboolean* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =187\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseByteArrayElements
+(JNIEnv* a0, jbyteArray a1, jbyte* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =188\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseCharArrayElements
+(JNIEnv* a0, jcharArray a1, jchar* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =189\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseShortArrayElements
+(JNIEnv* a0, jshortArray a1, jshort* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =190\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseIntArrayElements
+(JNIEnv* a0, jintArray a1, jint* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =191\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseLongArrayElements
+(JNIEnv* a0, jlongArray a1, jlong* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =192\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseFloatArrayElements
+(JNIEnv* a0, jfloatArray a1, jfloat* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =193\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_ReleaseDoubleArrayElements
+(JNIEnv* a0, jdoubleArray a1, jdouble* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =194\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_GetBooleanArrayRegion
+(JNIEnv* a0, jbooleanArray a1, jsize a2, jsize a3, jboolean* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =195\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_GetByteArrayRegion
+(JNIEnv* a0, jbyteArray a1, jsize a2, jsize a3, jbyte* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =196\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_GetCharArrayRegion
+(JNIEnv* a0, jcharArray a1, jsize a2, jsize a3, jchar* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =197\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_GetShortArrayRegion
+(JNIEnv* a0, jshortArray a1, jsize a2, jsize a3, jshort* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =198\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_GetIntArrayRegion
+(JNIEnv* a0, jintArray a1, jsize a2, jsize a3, jint* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =199\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static void
+UT_GetLongArrayRegion
+(JNIEnv* a0, jlongArray a1, jsize a2, jsize a3, jlong* a4)
 {
     asm volatile( "push {r7, r8}\n"
             "ldr r8, =200\n"
             "ldr r7, =383\n"
             "svc #0\n"
             "pop {r7, r8}\n"
+            "bx lr\n"
             : : );
-    jobject ret;
-    asm volatile( "mov %0, r0\n" : "=r" (ret): );
-    ALOGE("ret = %p at %s, %d", ret, __FUNCTION__, __LINE__);
-    return ret;
+    /* not reached */
+    return;
 }
 
-#define CALL_NONVIRTUAL(_ctype, _jname)                                     \
-static     _ctype UT_CallNonvirtual##_jname##Method(JNIEnv* env, jobject jobj, \
-        jclass jclazz, jmethodID methodID, ...)                             \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        va_list args; \
-        va_start(args, methodID);                                           \
-        _ctype ret = gEnv->CallNonvirtual##_jname##MethodV(jobj,      \
-                jclazz, methodID, args);                                    \
-        va_end(args);                                                       \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }                                                                       \
-static     _ctype UT_CallNonvirtual##_jname##MethodV(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, va_list args)                    \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype ret = gEnv->CallNonvirtual##_jname##MethodV(jobj,      \
-                jclazz, methodID, args);                                    \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }                                                                       \
-static     _ctype UT_CallNonvirtual##_jname##MethodA(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, jvalue* args)                    \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype ret = gEnv->CallNonvirtual##_jname##MethodA(jobj,      \
-                jclazz, methodID, args);                                    \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }
-#define CALL_NONVIRTUAL_VOID                                     \
-static     void UT_CallNonvirtualVoidMethod(JNIEnv* env, jobject jobj, \
-        jclass jclazz, jmethodID methodID, ...)                             \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        va_list args; \
-        va_start(args, methodID);                                           \
-        gEnv->CallNonvirtualVoidMethodV(jobj,      \
-                jclazz, methodID, args);                                    \
-        va_end(args);                                                       \
-        jump_in(tls);                                                          \
-    }                                                                       \
-static     void UT_CallNonvirtualVoidMethodV(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, va_list args)                    \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->CallNonvirtualVoidMethodV(jobj,      \
-                jclazz, methodID, args);                                    \
-        jump_in(tls);                                                          \
-    }                                                                       \
-static     void UT_CallNonvirtualVoidMethodA(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, jvalue* args)                    \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->CallNonvirtualVoidMethodA(jobj,      \
-                jclazz, methodID, args);                                    \
-        jump_in(tls);                                                          \
-    }
-CALL_NONVIRTUAL(jobject, Object);
-CALL_NONVIRTUAL(jboolean, Boolean);
-CALL_NONVIRTUAL(jbyte, Byte);
-CALL_NONVIRTUAL(jchar, Char);
-CALL_NONVIRTUAL(jshort, Short);
-CALL_NONVIRTUAL(jint, Int);
-CALL_NONVIRTUAL(jlong, Long);
-CALL_NONVIRTUAL(jfloat, Float);
-CALL_NONVIRTUAL(jdouble, Double);
-CALL_NONVIRTUAL_VOID;
-
-
-#define CALL_STATIC(_ctype, _jname)                                         \
-static     _ctype UT_CallStatic##_jname##Method(JNIEnv* env, jclass jclazz,    \
-        jmethodID methodID, ...)                                            \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        va_list args; \
-        va_start(args, methodID);                                           \
-        _ctype ret = gEnv->CallStatic##_jname##MethodV(jclazz, methodID, args); \
-        va_end(args);                                                       \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }                                                                       \
-static     _ctype UT_CallStatic##_jname##MethodV(JNIEnv* env, jclass jclazz,   \
-        jmethodID methodID, va_list args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype ret = gEnv->CallStatic##_jname##MethodV(jclazz, methodID, args); \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }                                                                       \
-static     _ctype UT_CallStatic##_jname##MethodA(JNIEnv* env, jclass jclazz,   \
-        jmethodID methodID, jvalue* args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        _ctype ret = gEnv->CallStatic##_jname##MethodA(jclazz, methodID, args); \
-        jump_in(tls);                                                          \
-        return ret;                                                         \
-    }
-#define CALL_STATIC_VOID                                         \
-static     void UT_CallStaticVoidMethod(JNIEnv* env, jclass jclazz,    \
-        jmethodID methodID, ...)                                            \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        va_list args; \
-        va_start(args, methodID);                                           \
-        gEnv->CallStaticVoidMethodV(jclazz, methodID, args); \
-        va_end(args);                                                       \
-        jump_in(tls);                                                          \
-    }                                                                       \
-static     void UT_CallStaticVoidMethodV(JNIEnv* env, jclass jclazz,   \
-        jmethodID methodID, va_list args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->CallStaticVoidMethodV(jclazz, methodID, args); \
-        jump_in(tls);                                                          \
-    }                                                                       \
-static     void UT_CallStaticVoidMethodA(JNIEnv* env, jclass jclazz,   \
-        jmethodID methodID, jvalue* args)                                   \
-    {                                                                       \
-        void** tls = jump_out();                                                         \
-        gEnv->CallStaticVoidMethodA(jclazz, methodID, args); \
-        jump_in(tls);                                                          \
-    }
-CALL_STATIC(jobject, Object);
-CALL_STATIC(jboolean, Boolean);
-CALL_STATIC(jbyte, Byte);
-CALL_STATIC(jchar, Char);
-CALL_STATIC(jshort, Short);
-CALL_STATIC(jint, Int);
-CALL_STATIC(jlong, Long);
-CALL_STATIC(jfloat, Float);
-CALL_STATIC(jdouble, Double);
-CALL_STATIC_VOID;
-
-static jstring UT_NewString(JNIEnv* env, const jchar* unicodeChars, jsize len) {
-    void** tls = jump_out();
-    jstring ret = gEnv->NewString(unicodeChars, len);
-    jump_in(tls);
-    return ret;
-}
-
-static jsize UT_GetStringLength(JNIEnv* env, jstring jstr) {
-    void** tls = jump_out();
-    jsize ret = gEnv->GetStringLength(jstr);
-    jump_in(tls);
-    return ret;
-}
-
-static const jchar* UT_GetStringChars(JNIEnv* env, jstring jstr, jboolean* isCopy) {
-    void** tls = jump_out();
-    JNIEnv* e = gEnv;
-    jsize len = e->GetStringLength(jstr);
-    if (!len) {
-        jump_in(tls);
-        return NULL;
-    }
-    jchar* buf = NULL;
-    if (len) {
-        buf = (jchar*)malloc(sizeof(jchar) * (len+1));
-        const jchar* str = e->GetStringChars(jstr, isCopy);
-        set_fake_ptr(buf, str, sizeof(jchar) * len);
-        buf[len] = '\0';
-    }
-    jump_in(tls);
-    return (const jchar*)buf;
-}
-
-static void UT_ReleaseStringChars(JNIEnv* env, jstring jstr, const jchar* chars) {
-    if (!chars) return;
-    void** tls = jump_out();
-    release_fake_ptr(jchar*, str, chars);
-    gEnv->ReleaseStringChars(jstr, str);
-    jump_in(tls);
-}
-
-static jstring UT_NewStringUTF(JNIEnv* env, const char* bytes) {
-    void** tls = jump_out();
-    jstring ret = gEnv->NewStringUTF(bytes);
-    jump_in(tls);
-    return ret;
-}
-
-static jsize UT_GetStringUTFLength(JNIEnv* env, jstring jstr) {
-    void** tls = jump_out();
-    jsize ret = gEnv->GetStringUTFLength(jstr);
-    jump_in(tls);
-    return ret;
-}
-
-static const char* UT_GetStringUTFChars(JNIEnv* env, jstring jstr, jboolean* isCopy) {
-    void** tls = jump_out();
-    JNIEnv* e = gEnv;
-    jsize len = e->GetStringUTFLength(jstr);
-    if (!len) {
-        jump_in(tls);
-        return NULL;
-    }
-    char* buf = NULL;
-    if (len) {
-        buf = (char*)malloc(len+1);
-        const char* str = e->GetStringUTFChars(jstr, isCopy);
-        set_fake_ptr(buf, str, len);
-        buf[len] = '\0';
-    }
-    jump_in(tls);
-    return (const char*)buf;
-}
-
-static void UT_ReleaseStringUTFChars(JNIEnv* env, jstring jstr, const char* utf) {
-    if (!utf) return;
-    void** tls = jump_out();
-    release_fake_ptr(const char*, str, utf);
-    gEnv->ReleaseStringUTFChars(jstr, str);
-    jump_in(tls);
-}
-
-static jsize UT_GetArrayLength(JNIEnv* env, jarray jarr) {
-    void** tls = jump_out();
-    jsize ret = gEnv->GetArrayLength(jarr);
-    jump_in(tls);
-    return ret;
-}
-
-static jobjectArray UT_NewObjectArray(JNIEnv* env, jsize length,
-    jclass jelementClass, jobject jinitialElement)
+static void
+UT_GetFloatArrayRegion
+(JNIEnv* a0, jfloatArray a1, jsize a2, jsize a3, jfloat* a4)
 {
-    void** tls = jump_out();
-    jobjectArray ret = gEnv->NewObjectArray(length, jelementClass, jinitialElement);
-    jump_in(tls);
-    return ret;
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =201\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jobject UT_GetObjectArrayElement(JNIEnv* env, jobjectArray jarr, jsize index) {
-    void** tls = jump_out();
-    jobject ret = gEnv->GetObjectArrayElement(jarr, index);
-    jump_in(tls);
-    return ret;
-}
-
-static void UT_SetObjectArrayElement(JNIEnv* env, jobjectArray jarr, jsize index, jobject jobj) {
-    void** tls = jump_out();
-    gEnv->SetObjectArrayElement(jarr, index, jobj);
-    jump_in(tls);
-}
-
-#define NEW_PRIMITIVE_ARRAY(_artype, _jname) \
-static     _artype UT_New##_jname##Array(JNIEnv* env, jsize length) { \
-        void** tls = jump_out(); \
-        _artype result = gEnv->New##_jname##Array(length); \
-        jump_in(tls); \
-        return result; \
-    }
-NEW_PRIMITIVE_ARRAY(jbooleanArray, Boolean);
-NEW_PRIMITIVE_ARRAY(jbyteArray, Byte);
-NEW_PRIMITIVE_ARRAY(jcharArray, Char);
-NEW_PRIMITIVE_ARRAY(jshortArray, Short);
-NEW_PRIMITIVE_ARRAY(jintArray, Int);
-NEW_PRIMITIVE_ARRAY(jlongArray, Long);
-NEW_PRIMITIVE_ARRAY(jfloatArray, Float);
-NEW_PRIMITIVE_ARRAY(jdoubleArray, Double);
-
-#define GET_PRIMITIVE_ARRAY_ELEMENTS(_ctype, _jname) \
-static     _ctype* UT_Get##_jname##ArrayElements(JNIEnv* env, \
-        _ctype##Array jarr, jboolean* isCopy) \
-    { \
-        void** tls = jump_out(); \
-        jsize len = gEnv->GetArrayLength(jarr); \
-        if (!len) { \
-            jump_in(tls); \
-            return NULL; \
-        } \
-        _ctype* data = NULL; \
-        if (len) { \
-            data = (_ctype*)malloc(sizeof(_ctype)*(len+1)); \
-            _ctype* val = gEnv->Get##_jname##ArrayElements(jarr, isCopy); \
-            set_fake_ptr(data, val, sizeof(_ctype)*len); \
-            data[len] = (_ctype)0; \
-        } \
-        jump_in(tls); \
-        return data; \
-    }
-
-#define RELEASE_PRIMITIVE_ARRAY_ELEMENTS(_ctype, _jname)                    \
-static     void UT_Release##_jname##ArrayElements(JNIEnv* env,                 \
-        _ctype##Array jarr, _ctype* elems, jint mode)                       \
-    {                                                                       \
-        if (!elems) return; \
-        void** tls = jump_out(); \
-        release_fake_ptr(_ctype *, data, elems); \
-        gEnv->Release##_jname##ArrayElements(jarr, data, mode); \
-        jump_in(tls); \
-    }
-
-#define GET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
-static     void UT_Get##_jname##ArrayRegion(JNIEnv* env, \
-        _ctype##Array jarr, jsize start, jsize len, _ctype* buf) \
-    { \
-        void** tls = jump_out(); \
-        gEnv->Get##_jname##ArrayRegion(jarr, start, len, buf); \
-        jump_in(tls); \
-    }
-
-#define SET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
-static     void UT_Set##_jname##ArrayRegion(JNIEnv* env, \
-        _ctype##Array jarr, jsize start, jsize len, const _ctype* buf) \
-    { \
-        void** tls = jump_out(); \
-        gEnv->Set##_jname##ArrayRegion(jarr, start, len, buf); \
-        jump_in(tls); \
-    }
-
-/*
- * 4-in-1:
- *  Get<Type>ArrayElements
- *  Release<Type>ArrayElements
- *  Get<Type>ArrayRegion
- *  Set<Type>ArrayRegion
- */
-#define PRIMITIVE_ARRAY_FUNCTIONS(_ctype, _jname)                           \
-    GET_PRIMITIVE_ARRAY_ELEMENTS(_ctype, _jname);                           \
-    RELEASE_PRIMITIVE_ARRAY_ELEMENTS(_ctype, _jname);                       \
-    GET_PRIMITIVE_ARRAY_REGION(_ctype, _jname);                             \
-    SET_PRIMITIVE_ARRAY_REGION(_ctype, _jname);
-
-PRIMITIVE_ARRAY_FUNCTIONS(jboolean, Boolean);
-PRIMITIVE_ARRAY_FUNCTIONS(jbyte, Byte);
-PRIMITIVE_ARRAY_FUNCTIONS(jchar, Char);
-PRIMITIVE_ARRAY_FUNCTIONS(jshort, Short);
-PRIMITIVE_ARRAY_FUNCTIONS(jint, Int);
-PRIMITIVE_ARRAY_FUNCTIONS(jlong, Long);
-PRIMITIVE_ARRAY_FUNCTIONS(jfloat, Float);
-PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double);
-
-static jint UT_RegisterNatives(JNIEnv* env, jclass jclazz,
-    const JNINativeMethod* methods, jint nMethods)
+static void
+UT_GetDoubleArrayRegion
+(JNIEnv* a0, jdoubleArray a1, jsize a2, jsize a3, jdouble* a4)
 {
-    void** tls = jump_out();
-    jint ret = gEnv->RegisterNatives(jclazz, methods, nMethods);
-    jump_in(tls);
-    return ret;
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =202\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jint UT_UnregisterNatives(JNIEnv* env, jclass jclazz) {
-    void** tls = jump_out();
-    jint ret = gEnv->UnregisterNatives(jclazz);
-    jump_in(tls);
-    return ret;
+static void
+UT_SetBooleanArrayRegion
+(JNIEnv* a0, jbooleanArray a1, jsize a2, jsize a3, const jboolean* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =203\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jint UT_MonitorEnter(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jint ret = gEnv->MonitorEnter(jobj);
-    jump_in(tls);
-    return ret;
+static void
+UT_SetByteArrayRegion
+(JNIEnv* a0, jbyteArray a1, jsize a2, jsize a3, const jbyte* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =204\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jint UT_MonitorExit(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jint ret = gEnv->MonitorExit(jobj);
-    jump_in(tls);
-    return ret;
+static void
+UT_SetCharArrayRegion
+(JNIEnv* a0, jcharArray a1, jsize a2, jsize a3, const jchar* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =205\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jint UT_GetJavaVM(JNIEnv* env, JavaVM** vm) {
-    void** tls = jump_out();
-    jint ret = gEnv->GetJavaVM(vm);
-    jump_in(tls);
-    return ret;
+static void
+UT_SetShortArrayRegion
+(JNIEnv* a0, jshortArray a1, jsize a2, jsize a3, const jshort* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =206\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static void UT_GetStringRegion(JNIEnv* env, jstring jstr, jsize start, jsize len, jchar* buf) {
-    void** tls = jump_out();
-    gEnv->GetStringRegion(jstr, start, len, buf);
-    jump_in(tls);
+static void
+UT_SetIntArrayRegion
+(JNIEnv* a0, jintArray a1, jsize a2, jsize a3, const jint* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =207\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static void UT_GetStringUTFRegion(JNIEnv* env, jstring jstr, jsize start, jsize len, char* buf) {
-    void** tls = jump_out();
-    gEnv->GetStringUTFRegion(jstr, start, len, buf);
-    jump_in(tls);
+static void
+UT_SetLongArrayRegion
+(JNIEnv* a0, jlongArray a1, jsize a2, jsize a3, const jlong* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =208\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static void* UT_GetPrimitiveArrayCritical(JNIEnv* env, jarray jarr, jboolean* isCopy) {
-    void** tls = jump_out();
-    JNIEnv* e = gEnv;
-    jsize len = e->GetArrayLength(jarr);
-    if (!len) {
-        jump_in(tls);
-        return NULL;
-    }
-    size_t width = 0;
-    char type = (pHelper->GetObjectName(e, jarr))[1];
-    switch (type) {
-        case 'I': width = 4; break;
-        case 'C': width = 2; break;
-        case 'B': width = 1; break;
-        case 'Z': width = 1; /* special-case this? */ break;
-        case 'F': width = 4; break;
-        case 'D': width = 8; break;
-        case 'S': width = 2; break;
-        case 'J': width = 8; break;
-        default: width = 8; break;
-    }
-    void* buf = NULL;
-    if (len) {
-        buf = malloc(width*(len+1));
-        if (buf == NULL) {
-            ALOGE("buf is null");
-            jump_in(tls);
-            return NULL;
-        }
-        void* ret = e->GetPrimitiveArrayCritical(jarr, isCopy);
-        if (ret == NULL) {
-            ALOGE("ret is null");
-            free(buf);
-            jump_in(tls);
-            return NULL;
-        }
-        set_fake_ptr(buf, ret, width*len);
-        memset((void*)((unsigned long)buf+(unsigned long)(width*len)), 0, width);
-    }
-    jump_in(tls);
-    return buf;
+static void
+UT_SetFloatArrayRegion
+(JNIEnv* a0, jfloatArray a1, jsize a2, jsize a3, const jfloat* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =209\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static void UT_ReleasePrimitiveArrayCritical(JNIEnv* env, jarray jarr, void* carray, jint mode) {
-    if (!carray) return;
-    void** tls = jump_out();
-    release_fake_ptr(void*, __arr, carray);
-    gEnv->ReleasePrimitiveArrayCritical(jarr, __arr, mode);
-    jump_in(tls);
+static void
+UT_SetDoubleArrayRegion
+(JNIEnv* a0, jdoubleArray a1, jsize a2, jsize a3, const jdouble* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =210\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static const jchar* UT_GetStringCritical(JNIEnv* env, jstring jstr, jboolean* isCopy) {
-    void** tls = jump_out();
-    JNIEnv* e = gEnv;
-    jsize len = e->GetStringLength(jstr);
-    if (!len) {
-        jump_in(tls);
-        return NULL;
-    }
-    jchar* buf = NULL;
-    if (len) {
-        buf = (jchar*)malloc(sizeof(jchar) * (len+1));
-        const jchar* ret = e->GetStringCritical(jstr, isCopy);
-        set_fake_ptr(buf, ret, sizeof(jchar) * len);
-        buf[len] = '\0';
-    }
-    jump_in(tls);
-    return (const jchar*)buf;
+static jint
+UT_RegisterNatives
+(JNIEnv* a0, jclass a1, const JNINativeMethod* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =211\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static void UT_ReleaseStringCritical(JNIEnv* env, jstring jstr, const jchar* carray) {
-    if (!carray) return;
-    void** tls = jump_out();
-    release_fake_ptr(const jchar*, str, carray);
-    gEnv->ReleaseStringCritical(jstr, str);
-    jump_in(tls);
+static jint
+UT_UnregisterNatives
+(JNIEnv* a0, jclass a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =212\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jweak UT_NewWeakGlobalRef(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jweak ret = gEnv->NewWeakGlobalRef(jobj);
-    jump_in(tls);
-    return ret;
+static jint
+UT_MonitorEnter
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =213\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static void UT_DeleteWeakGlobalRef(JNIEnv* env, jweak wref) {
-    void** tls = jump_out();
-    gEnv->DeleteWeakGlobalRef(wref);
-    jump_in(tls);
+static jint
+UT_MonitorExit
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =214\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jboolean UT_ExceptionCheck(JNIEnv* env) {
-    void** tls = jump_out();
-    jboolean ret = gEnv->ExceptionCheck();
-    jump_in(tls);
-    return ret;
+static jint
+UT_GetJavaVM
+(JNIEnv* a0, JavaVM** a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =215\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jobjectRefType UT_GetObjectRefType(JNIEnv* env, jobject jobj) {
-    void** tls = jump_out();
-    jobjectRefType ret = gEnv->GetObjectRefType(jobj);
-    jump_in(tls);
-    return ret;
+static void
+UT_GetStringRegion
+(JNIEnv* a0, jstring a1, jsize a2, jsize a3, jchar* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =216\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-static jobject UT_NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
-    void** tls = jump_out();
-    jobject ret = gEnv->NewDirectByteBuffer(address, capacity);
-    jump_in(tls);
-    return ret;
+static void
+UT_GetStringUTFRegion
+(JNIEnv* a0, jstring a1, jsize a2, jsize a3, char* a4)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =217\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
-//TODO
-static void* UT_GetDirectBufferAddress(JNIEnv* env, jobject jbuf) {
-    void** tls = jump_out();
-    void* ret = gEnv->GetDirectBufferAddress(jbuf);
-    jump_in(tls);
-    return ret;
+static void*
+UT_GetPrimitiveArrayCritical
+(JNIEnv* a0, jarray a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =218\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
 }
 
-static jlong UT_GetDirectBufferCapacity(JNIEnv* env, jobject jbuf) {
-    void** tls = jump_out();
-    jlong ret = gEnv->GetDirectBufferCapacity(jbuf);
-    jump_in(tls);
-    return ret;
+static void
+UT_ReleasePrimitiveArrayCritical
+(JNIEnv* a0, jarray a1, void* a2, jint a3)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =219\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
 }
 
+static const jchar*
+UT_GetStringCritical
+(JNIEnv* a0, jstring a1, jboolean* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =220\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_ReleaseStringCritical
+(JNIEnv* a0, jstring a1, const jchar* a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =221\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jweak
+UT_NewWeakGlobalRef
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =222\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void
+UT_DeleteWeakGlobalRef
+(JNIEnv* a0, jweak a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =223\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return;
+}
+
+static jboolean
+UT_ExceptionCheck
+(JNIEnv* a0)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =224\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobject
+UT_NewDirectByteBuffer
+(JNIEnv* a0, void* a1, jlong a2)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =225\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static void*
+UT_GetDirectBufferAddress
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =226\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jlong
+UT_GetDirectBufferCapacity
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =227\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return 0;
+}
+
+static jobjectRefType
+UT_GetObjectRefType
+(JNIEnv* a0, jobject a1)
+{
+    asm volatile( "push {r7, r8}\n"
+            "ldr r8, =228\n"
+            "ldr r7, =383\n"
+            "svc #0\n"
+            "pop {r7, r8}\n"
+            "bx lr\n"
+            : : );
+    /* not reached */
+    return JNIInvalidRefType;
+}
 
 /*
  * ===========================================================================
@@ -1054,7 +3462,7 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_GetMethodID,
 
     UT_CallObjectMethod,
-    UT_CallObjectMethodV2,
+    UT_CallObjectMethodV,
     UT_CallObjectMethodA,
     UT_CallBooleanMethod,
     UT_CallBooleanMethodV,
@@ -1283,10 +3691,8 @@ static const struct JNINativeInterface gBridgeInterface = {
 static JNIEnv gBridgeEnv;
 extern "C" JNIEnv* init_libjnienv(structhelpfunc_t *h) {
     gBridgeEnv.functions = &gBridgeInterface;
-    pHelper = h;
     return &gBridgeEnv;
 }
 
 extern "C" void set_jnienv(JNIEnv* env) {
-    gEnv = env;
 }
