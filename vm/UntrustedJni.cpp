@@ -220,7 +220,7 @@ static jint UT_GetVersion(JNIEnv* env) {
 }
 
 static jclass UT_DefineClass(JNIEnv* env, const char *name, jobject loader,
-    const jbyte* buf, jsize bufLen)
+    const jbyte* buf, unsigned long d0, unsigned long d1, jsize bufLen)
 {
     void** tls = jump_out();
     jclass ret = gEnv->DefineClass(name, loader, buf, bufLen);
@@ -263,7 +263,9 @@ static jfieldID UT_FromReflectedField(JNIEnv* env, jobject jfield) {
     return ret;
 }
 
-static jobject UT_ToReflectedMethod(JNIEnv* env, jclass jcls, jmethodID methodID, jboolean isStatic) {
+static jobject UT_ToReflectedMethod(JNIEnv* env, jclass jcls, jmethodID methodID,
+        jboolean isStatic)
+{
     void** tls = jump_out();
     jobject ret = gEnv->ToReflectedMethod(jcls, methodID, isStatic);
     jump_in(tls, ret);
@@ -595,7 +597,8 @@ static     _ctype UT_CallNonvirtual##_jname##Method(JNIEnv* env, jobject jobj, \
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_CallNonvirtual##_jname##MethodV(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, va_list args)                    \
+        jclass jclazz, jmethodID methodID, \
+        unsigned long d0, unsigned long d1, va_list args)                    \
     {                                                                       \
         void** tls = jump_out();                                                         \
         _ctype ret = gEnv->CallNonvirtual##_jname##MethodV(jobj,      \
@@ -604,7 +607,8 @@ static     _ctype UT_CallNonvirtual##_jname##MethodV(JNIEnv* env, jobject jobj,\
         return ret;                                                         \
     }                                                                       \
 static     _ctype UT_CallNonvirtual##_jname##MethodA(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, jvalue* args)                    \
+        jclass jclazz, jmethodID methodID, \
+        unsigned long d0, unsigned long d1, jvalue* args)                    \
     {                                                                       \
         void** tls = jump_out();                                                         \
         _ctype ret = gEnv->CallNonvirtual##_jname##MethodA(jobj,      \
@@ -625,7 +629,8 @@ static     void UT_CallNonvirtualVoidMethod(JNIEnv* env, jobject jobj, \
         jump_in2(tls);                                                          \
     }                                                                       \
 static     void UT_CallNonvirtualVoidMethodV(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, va_list args)                    \
+        jclass jclazz, jmethodID methodID, \
+        unsigned long d0, unsigned long d1, va_list args)                    \
     {                                                                       \
         void** tls = jump_out();                                                         \
         gEnv->CallNonvirtualVoidMethodV(jobj,      \
@@ -633,7 +638,8 @@ static     void UT_CallNonvirtualVoidMethodV(JNIEnv* env, jobject jobj,\
         jump_in2(tls);                                                          \
     }                                                                       \
 static     void UT_CallNonvirtualVoidMethodA(JNIEnv* env, jobject jobj,\
-        jclass jclazz, jmethodID methodID, jvalue* args)                    \
+        jclass jclazz, jmethodID methodID, \
+        unsigned long d0, unsigned long d1, jvalue* args)                    \
     {                                                                       \
         void** tls = jump_out();                                                         \
         gEnv->CallNonvirtualVoidMethodA(jobj,      \
@@ -877,7 +883,8 @@ static     void UT_Release##_jname##ArrayElements(JNIEnv* env,                 \
 
 #define GET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
 static     void UT_Get##_jname##ArrayRegion(JNIEnv* env, \
-        _ctype##Array jarr, jsize start, jsize len, _ctype* buf) \
+        _ctype##Array jarr, jsize start, jsize len, \
+        unsigned long d0, unsigned long d1, _ctype* buf) \
     { \
         void** tls = jump_out(); \
         gEnv->Get##_jname##ArrayRegion(jarr, start, len, buf); \
@@ -886,21 +893,14 @@ static     void UT_Get##_jname##ArrayRegion(JNIEnv* env, \
 
 #define SET_PRIMITIVE_ARRAY_REGION(_ctype, _jname) \
 static     void UT_Set##_jname##ArrayRegion(JNIEnv* env, \
-        _ctype##Array jarr, jsize start, jsize len, const _ctype* buf) \
+        _ctype##Array jarr, jsize start, jsize len, \
+        unsigned long d0, unsigned long d1, const _ctype* buf) \
     { \
         void** tls = jump_out(); \
         gEnv->Set##_jname##ArrayRegion(jarr, start, len, buf); \
         jump_in2(tls); \
     }
 
-static void UT_SetDoubleArrayRegion2(JNIEnv* env,
-        jdoubleArray jarr, jsize start, jsize len,
-        unsigned long dummy0, unsigned long dummy1, const jdouble* buf)
-    {
-        void** tls = jump_out();
-        gEnv->SetDoubleArrayRegion(jarr, start, len, buf);
-        jump_in2(tls);
-    }
 /*
  * 4-in-1:
  *  Get<Type>ArrayElements
@@ -960,13 +960,17 @@ static jint UT_GetJavaVM(JNIEnv* env, JavaVM** vm) {
     return ret;
 }
 
-static void UT_GetStringRegion(JNIEnv* env, jstring jstr, jsize start, jsize len, jchar* buf) {
+static void UT_GetStringRegion(JNIEnv* env, jstring jstr, jsize start, jsize len,
+        unsigned long d0, unsigned long d1, jchar* buf)
+{
     void** tls = jump_out();
     gEnv->GetStringRegion(jstr, start, len, buf);
     jump_in2(tls);
 }
 
-static void UT_GetStringUTFRegion(JNIEnv* env, jstring jstr, jsize start, jsize len, char* buf) {
+static void UT_GetStringUTFRegion(JNIEnv* env, jstring jstr, jsize start, jsize len,
+        unsigned long d0, unsigned long d1, char* buf)
+{
     void** tls = jump_out();
     gEnv->GetStringUTFRegion(jstr, start, len, buf);
     jump_in2(tls);
@@ -1110,48 +1114,36 @@ static const struct JNINativeInterface gBridgeInterface = {
     NULL,
     NULL,
     NULL,
-
     UT_GetVersion,
-
-    UT_DefineClass,
+    (jclass (*)(JNIEnv*, const char*, jobject, const jbyte*, jsize))UT_DefineClass,
     UT_FindClass,
-
     UT_FromReflectedMethod,
     UT_FromReflectedField,
     UT_ToReflectedMethod,
-
     UT_GetSuperclass,
     UT_IsAssignableFrom,
-
     UT_ToReflectedField,
-
     UT_Throw,
     UT_ThrowNew,
     UT_ExceptionOccurred,
     UT_ExceptionDescribe,
     UT_ExceptionClear,
     UT_FatalError,
-
     UT_PushLocalFrame,
     UT_PopLocalFrame,
-
     UT_NewGlobalRef,
     UT_DeleteGlobalRef,
     UT_DeleteLocalRef,
     UT_IsSameObject,
     UT_NewLocalRef,
     UT_EnsureLocalCapacity,
-
     UT_AllocObject,
     UT_NewObject,
     UT_NewObjectV,
     UT_NewObjectA,
-
     UT_GetObjectClass,
     UT_IsInstanceOf,
-
     UT_GetMethodID,
-
     UT_CallObjectMethod,
     UT_CallObjectMethodV,
     UT_CallObjectMethodA,
@@ -1182,40 +1174,37 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_CallVoidMethod,
     UT_CallVoidMethodV,
     UT_CallVoidMethodA,
-
     UT_CallNonvirtualObjectMethod,
-    UT_CallNonvirtualObjectMethodV,
-    UT_CallNonvirtualObjectMethodA,
+    (jobject (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualObjectMethodV,
+    (jobject (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualObjectMethodA,
     UT_CallNonvirtualBooleanMethod,
-    UT_CallNonvirtualBooleanMethodV,
-    UT_CallNonvirtualBooleanMethodA,
+    (jboolean (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualBooleanMethodV,
+    (jboolean (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualBooleanMethodA,
     UT_CallNonvirtualByteMethod,
-    UT_CallNonvirtualByteMethodV,
-    UT_CallNonvirtualByteMethodA,
+    (jbyte (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualByteMethodV,
+    (jbyte (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualByteMethodA,
     UT_CallNonvirtualCharMethod,
-    UT_CallNonvirtualCharMethodV,
-    UT_CallNonvirtualCharMethodA,
+    (jchar (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualCharMethodV,
+    (jchar (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualCharMethodA,
     UT_CallNonvirtualShortMethod,
-    UT_CallNonvirtualShortMethodV,
-    UT_CallNonvirtualShortMethodA,
+    (jshort (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualShortMethodV,
+    (jshort (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualShortMethodA,
     UT_CallNonvirtualIntMethod,
-    UT_CallNonvirtualIntMethodV,
-    UT_CallNonvirtualIntMethodA,
+    (jint (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualIntMethodV,
+    (jint (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualIntMethodA,
     UT_CallNonvirtualLongMethod,
-    UT_CallNonvirtualLongMethodV,
-    UT_CallNonvirtualLongMethodA,
+    (jlong (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualLongMethodV,
+    (jlong (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualLongMethodA,
     UT_CallNonvirtualFloatMethod,
-    UT_CallNonvirtualFloatMethodV,
-    UT_CallNonvirtualFloatMethodA,
+    (jfloat (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualFloatMethodV,
+    (jfloat (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualFloatMethodA,
     UT_CallNonvirtualDoubleMethod,
-    UT_CallNonvirtualDoubleMethodV,
-    UT_CallNonvirtualDoubleMethodA,
+    (jdouble (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualDoubleMethodV,
+    (jdouble (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualDoubleMethodA,
     UT_CallNonvirtualVoidMethod,
-    UT_CallNonvirtualVoidMethodV,
-    UT_CallNonvirtualVoidMethodA,
-
+    (void (*)(JNIEnv*, jobject, jclass, jmethodID, va_list))UT_CallNonvirtualVoidMethodV,
+    (void (*)(JNIEnv*, jobject, jclass, jmethodID, jvalue*))UT_CallNonvirtualVoidMethodA,
     UT_GetFieldID,
-
     UT_GetObjectField,
     UT_GetBooleanField,
     UT_GetByteField,
@@ -1234,9 +1223,7 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_SetLongField,
     UT_SetFloatField,
     UT_SetDoubleField,
-
     UT_GetStaticMethodID,
-
     UT_CallStaticObjectMethod,
     UT_CallStaticObjectMethodV,
     UT_CallStaticObjectMethodA,
@@ -1267,9 +1254,7 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_CallStaticVoidMethod,
     UT_CallStaticVoidMethodV,
     UT_CallStaticVoidMethodA,
-
     UT_GetStaticFieldID,
-
     UT_GetStaticObjectField,
     UT_GetStaticBooleanField,
     UT_GetStaticByteField,
@@ -1279,7 +1264,6 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_GetStaticLongField,
     UT_GetStaticFloatField,
     UT_GetStaticDoubleField,
-
     UT_SetStaticObjectField,
     UT_SetStaticBooleanField,
     UT_SetStaticByteField,
@@ -1289,23 +1273,18 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_SetStaticLongField,
     UT_SetStaticFloatField,
     UT_SetStaticDoubleField,
-
     UT_NewString,
-
     UT_GetStringLength,
     UT_GetStringChars,
     UT_ReleaseStringChars,
-
     UT_NewStringUTF,
     UT_GetStringUTFLength,
     UT_GetStringUTFChars,
     UT_ReleaseStringUTFChars,
-
     UT_GetArrayLength,
     UT_NewObjectArray,
     UT_GetObjectArrayElement,
     UT_SetObjectArrayElement,
-
     UT_NewBooleanArray,
     UT_NewByteArray,
     UT_NewCharArray,
@@ -1314,7 +1293,6 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_NewLongArray,
     UT_NewFloatArray,
     UT_NewDoubleArray,
-
     UT_GetBooleanArrayElements,
     UT_GetByteArrayElements,
     UT_GetCharArrayElements,
@@ -1323,7 +1301,6 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_GetLongArrayElements,
     UT_GetFloatArrayElements,
     UT_GetDoubleArrayElements,
-
     UT_ReleaseBooleanArrayElements,
     UT_ReleaseByteArrayElements,
     UT_ReleaseCharArrayElements,
@@ -1332,53 +1309,40 @@ static const struct JNINativeInterface gBridgeInterface = {
     UT_ReleaseLongArrayElements,
     UT_ReleaseFloatArrayElements,
     UT_ReleaseDoubleArrayElements,
-
-    UT_GetBooleanArrayRegion,
-    UT_GetByteArrayRegion,
-    UT_GetCharArrayRegion,
-    UT_GetShortArrayRegion,
-    UT_GetIntArrayRegion,
-    UT_GetLongArrayRegion,
-    UT_GetFloatArrayRegion,
-    UT_GetDoubleArrayRegion,
-    UT_SetBooleanArrayRegion,
-    UT_SetByteArrayRegion,
-    UT_SetCharArrayRegion,
-    UT_SetShortArrayRegion,
-    UT_SetIntArrayRegion,
-    UT_SetLongArrayRegion,
-    UT_SetFloatArrayRegion,
-    (void (*)(JNIEnv*,
-        jdoubleArray, jsize, jsize,
-        const jdouble*))UT_SetDoubleArrayRegion2,
-
+    (void (*)(JNIEnv*, jbooleanArray, jsize, jsize, jboolean*))UT_GetBooleanArrayRegion,
+    (void (*)(JNIEnv*, jbyteArray, jsize, jsize, jbyte*))UT_GetByteArrayRegion,
+    (void (*)(JNIEnv*, jcharArray, jsize, jsize, jchar*))UT_GetCharArrayRegion,
+    (void (*)(JNIEnv*, jshortArray, jsize, jsize, jshort*))UT_GetShortArrayRegion,
+    (void (*)(JNIEnv*, jintArray, jsize, jsize, jint*))UT_GetIntArrayRegion,
+    (void (*)(JNIEnv*, jlongArray, jsize, jsize, jlong*))UT_GetLongArrayRegion,
+    (void (*)(JNIEnv*, jfloatArray, jsize, jsize, jfloat*))UT_GetFloatArrayRegion,
+    (void (*)(JNIEnv*, jdoubleArray, jsize, jsize, jdouble*))UT_GetDoubleArrayRegion,
+    (void (*)(JNIEnv*, jbooleanArray, jsize, jsize, const jboolean*))UT_SetBooleanArrayRegion,
+    (void (*)(JNIEnv*, jbyteArray, jsize, jsize, const jbyte*))UT_SetByteArrayRegion,
+    (void (*)(JNIEnv*, jcharArray, jsize, jsize, const jchar*))UT_SetCharArrayRegion,
+    (void (*)(JNIEnv*, jshortArray, jsize, jsize, const jshort*))UT_SetShortArrayRegion,
+    (void (*)(JNIEnv*, jintArray, jsize, jsize, const jint*))UT_SetIntArrayRegion,
+    (void (*)(JNIEnv*, jlongArray, jsize, jsize, const jlong*))UT_SetLongArrayRegion,
+    (void (*)(JNIEnv*, jfloatArray, jsize, jsize, const jfloat*))UT_SetFloatArrayRegion,
+    (void (*)(JNIEnv*, jdoubleArray, jsize, jsize, const jdouble*))UT_SetDoubleArrayRegion,
     UT_RegisterNatives,
     UT_UnregisterNatives,
-
     UT_MonitorEnter,
     UT_MonitorExit,
-
     UT_GetJavaVM,
-
-    UT_GetStringRegion,
-    UT_GetStringUTFRegion,
-
+    (void (*)(JNIEnv*, jstring, jsize, jsize, jchar*))UT_GetStringRegion,
+    (void (*)(JNIEnv*, jstring, jsize, jsize, char*))UT_GetStringUTFRegion,
     UT_GetPrimitiveArrayCritical,
     UT_ReleasePrimitiveArrayCritical,
-
     UT_GetStringCritical,
     UT_ReleaseStringCritical,
-
     UT_NewWeakGlobalRef,
     UT_DeleteWeakGlobalRef,
-
     UT_ExceptionCheck,
-
     UT_NewDirectByteBuffer,
     UT_GetDirectBufferAddress,
     UT_GetDirectBufferCapacity,
-
-    UT_GetObjectRefType
+    UT_GetObjectRefType,
 };
 
 static const structhelpfunc_t helper = {
@@ -1418,9 +1382,6 @@ JNIEnv* dvmGetUntrustedEnv(JNIEnv* env) {
     if (env) {
         set_jnienv(env);
         gEnv = env;
-    }
-    if (0) {
-        UT_SetDoubleArrayRegion(env, 0, 0, 0, 0);
     }
     return gUntrustedEnv;
 }
